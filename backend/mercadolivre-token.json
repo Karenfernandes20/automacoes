@@ -1,0 +1,15 @@
+{
+  "access_token": "APP_USR-5253821874147056-102013-2c6cfcb45ee4bc76bb39f01fc0df3a66-2469940343",
+  "token_type": "Bearer",
+  "expires_in": 21600,
+  "scope": "read urn:global:admin:info:/read-only urn:global:admin:info:/read-write urn:global:admin:oauth:/read-only urn:global:admin:oauth:/read-write urn:global:admin:users:/read-only urn:ml:all:comunication:/read-write urn:ml:all:publish-sync:/read-write urn:ml:mktp:ads:/read-write urn:ml:mktp:comunication:/read-write urn:ml:mktp:invoices:/read-write urn:ml:mktp:metrics:/read-only urn:ml:mktp:offers:/read-write urn:ml:mktp:orders-shipments:/read-write urn:ml:mktp:publish-sync:/read-write write",
+  "user_id": 2469940343,
+  "obtained_at": 1792516906183,
+  "user_info": {
+    "id": 2469940343,
+    "nickname": "PK20250601195809",
+    "email": "dev.karenfernandes@gmail.com",
+    "first_name": "Karen Lorrany",
+    "last_name": "Pereira Fernandes"
+  }
+}

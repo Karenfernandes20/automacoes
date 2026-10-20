@@ -1,0 +1,3 @@
+import { z } from 'zod'; import { MARKETPLACES, OFFER_STATUSES, AVAILABILITY } from '@central/shared';
+const optionalUrl=z.union([z.url(),z.literal('')]).transform(v=>v||'https://example.com/pendente');
+export const offerSchema=z.object({title:z.string().min(3).max(160),marketplace:z.enum(MARKETPLACES),category:z.string().min(2).max(60),imageUrl:z.url(),currentPrice:z.number().positive(),previousPrice:z.number().positive().nullable().optional(),coupon:z.string().max(40).nullable().optional(),originalUrl:optionalUrl,affiliateUrl:optionalUrl,verifiedAt:z.iso.datetime(),availability:z.enum(AVAILABILITY),status:z.enum(OFFER_STATUSES),publishAt:z.iso.datetime().nullable().optional()});

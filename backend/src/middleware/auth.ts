@@ -1,0 +1,2 @@
+import type { RequestHandler } from 'express'; import jwt from 'jsonwebtoken'; import { env } from '../config/env.js';
+export const requireAuth:RequestHandler=(req,res,next)=>{const token=req.headers.authorization?.replace(/^Bearer\s+/,'');if(!token){res.status(401).json({error:'Autenticação necessária'});return;}try{jwt.verify(token,env.JWT_SECRET);next();}catch{res.status(401).json({error:'Sessão inválida ou expirada'});}};

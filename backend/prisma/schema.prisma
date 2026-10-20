@@ -1,0 +1,89 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+
+enum OfferStatus { DRAFT PENDING APPROVED PUBLISHED REJECTED }
+enum Availability { AVAILABLE LOW_STOCK UNAVAILABLE }
+
+model Offer {
+  id String @id @default(cuid())
+  title String
+  marketplace String
+  category String
+  imageUrl String
+  currentPrice Decimal @db.Decimal(10, 2)
+  previousPrice Decimal? @db.Decimal(10, 2)
+  coupon String?
+  originalUrl String
+  affiliateUrl String
+  verifiedAt DateTime
+  availability Availability @default(AVAILABLE)
+  status OfferStatus @default(DRAFT)
+  publishAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  publications Publication[]
+}
+
+model Publication {
+  id String @id @default(cuid())
+  offerId String
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  channel String
+  status String
+  errorMessage String?
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model AffiliateAccount {
+  id String @id @default(cuid())
+  marketplace String
+  accountLabel String
+  externalAccountId String?
+  status String @default("DISCONNECTED")
+  lastSyncAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  conversions Conversion[]
+}
+
+model Channel {
+  id String @id @default(cuid())
+  name String
+  provider String
+  externalChannelId String?
+  capacity Int?
+  memberCount Int @default(0)
+  status String @default("DISCONNECTED")
+  lastSyncAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  snapshots MemberSnapshot[]
+}
+
+model MemberSnapshot {
+  id String @id @default(cuid())
+  channelId String
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  memberCount Int
+  capturedAt DateTime @default(now())
+}
+
+model Conversion {
+  id String @id @default(cuid())
+  affiliateAccountId String
+  affiliateAccount AffiliateAccount @relation(fields: [affiliateAccountId], references: [id], onDelete: Cascade)
+  externalOrderId String
+  marketplace String
+  productTitle String?
+  saleAmount Decimal? @db.Decimal(10, 2)
+  commissionAmount Decimal? @db.Decimal(10, 2)
+  currency String @default("BRL")
+  status String
+  orderedAt DateTime
+  confirmedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([marketplace, externalOrderId])
+}

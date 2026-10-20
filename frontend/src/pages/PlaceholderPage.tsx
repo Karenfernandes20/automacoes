@@ -1,0 +1,2 @@
+import { Construction } from 'lucide-react'; import { useLocation } from 'react-router-dom';
+export function PlaceholderPage(){const name=useLocation().pathname.split('/').pop()?.replace('-',' ')||'';return <div className="placeholder panel"><Construction/><span className="section-kicker">MÓDULO PREPARADO</span><h1>{name.charAt(0).toUpperCase()+name.slice(1)}</h1><p>A arquitetura deste módulo já está reservada. A integração será ativada em uma próxima fase, após validação das APIs e regras dos canais.</p></div>}
