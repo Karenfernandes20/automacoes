@@ -55,9 +55,19 @@ export function OffersPage(){
 
         <div className="table-wrap">
           <table className="offers-table">
+            <colgroup>
+              <col style={{width:'3%'}}/>
+              <col style={{width:'30%'}}/>
+              <col style={{width:'13%'}}/>
+              <col style={{width:'15%'}}/>
+              <col style={{width:'11%'}}/>
+              <col style={{width:'14%'}}/>
+              <col style={{width:'7%'}} className="hide-on-compact"/>
+              <col style={{width:'7%'}}/>
+            </colgroup>
             <thead>
               <tr>
-                <th style={{width:'36px'}}><input type="checkbox"/></th>
+                <th><input type="checkbox"/></th>
                 <th>OFERTA</th>
                 <th>MARKETPLACE</th>
                 <th>PREÇO</th>
