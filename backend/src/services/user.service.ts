@@ -21,9 +21,9 @@ export const userService = {
       cachedUser = JSON.parse(data) as UserProfile;
     } catch {
       cachedUser = {
-        name: 'Marina Costa',
-        email: env.ADMIN_EMAIL,
-        password: env.ADMIN_PASSWORD,
+        name: 'Karen Fernandes',
+        email: env.ADMIN_EMAIL || 'dev.karenfernandes@gmail.com',
+        password: env.ADMIN_PASSWORD || 'Klpf1212!',
         role: 'Administradora',
         updatedAt: new Date().toISOString()
       };
