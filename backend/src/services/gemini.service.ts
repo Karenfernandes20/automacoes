@@ -31,7 +31,7 @@ export class GeminiFlowService {
   /**
    * Calls Google Gemini API directly via fetch to generate text, scripts or prompts
    */
-  public static async generateGeminiText(prompt: string, model: string = 'gemini-1.5-flash'): Promise<string> {
+  public static async generateGeminiText(prompt: string, model: string = 'gemini-2.5-flash'): Promise<string> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       throw new Error('API Key do Google/Gemini não configurada no servidor.');
@@ -105,7 +105,12 @@ Regras:
 4. Mantenha no formato padrão de WhatsApp (use *negrito*, _itálico_ se apropriado).
 5. Apenas retorne o texto final da mensagem pronto para ser copiado ou disparado no grupo.`;
 
-    return await this.generateGeminiText(prompt);
+    try {
+      return await this.generateGeminiText(prompt);
+    } catch (e) {
+      console.warn('Gemini API call failed, generating template copy fallback:', e);
+      return `🔥 *MEGA OFERTA IMPERDÍVEL!* 🔥\n\n📦 *${params.productTitle}*\n\n${oldPriceFormatted ? `❌ De: ~${oldPriceFormatted}~\n` : ''}✅ *Por apenas: ${priceFormatted}*\n🛒 Loja oficial: ${params.marketplace}\n\n⚡ *Aproveite antes que esgote o estoque!*\n👉 Compre com desconto exclusivo aqui:\n${params.affiliateUrl}`;
+    }
   }
 
   /**
