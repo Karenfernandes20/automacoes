@@ -23,6 +23,9 @@ export const api={
   generateCopy:(data:{productTitle:string;category?:string;currentPrice:number;previousPrice?:number;marketplace?:string;affiliateUrl?:string;tone?:string})=>fetch(`${BASE}/automations/generate-copy`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()) as Promise<{copy:string;error?:string}>,
   generateVideoScript:(data:{productTitle:string;category?:string;currentPrice:number;marketplace?:string;affiliateUrl?:string;durationSeconds?:number})=>fetch(`${BASE}/automations/generate-video-script`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()) as Promise<{script:string;error?:string}>,
   generateVisualPrompts:(data:{productTitle:string;category?:string})=>fetch(`${BASE}/automations/generate-visual-prompts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()) as Promise<{imagePrompt:string;videoPrompt:string;error?:string}>,
-  getProfile:()=>request<{name:string;email:string;role:string;updatedAt?:string}>('/auth/me'),
-  updateProfile:(data:{name?:string;email?:string;currentPassword?:string;newPassword?:string})=>request<{name:string;email:string;role:string}>('/auth/profile',{method:'PUT',body:JSON.stringify(data)})
+  getProfile:()=>request<{id:string;name:string;email:string;role:string;updatedAt?:string}>('/auth/me'),
+  updateProfile:(data:{id?:string;name?:string;email?:string;currentPassword?:string;newPassword?:string;role?:string})=>request<{id:string;name:string;email:string;role:string}>('/auth/profile',{method:'PUT',body:JSON.stringify(data)}),
+  listUsers:()=>request<Array<{id:string;name:string;email:string;role:string;createdAt:string;updatedAt:string}>>('/auth/users'),
+  createUser:(data:{name:string;email:string;password:string;role:string})=>request<{id:string;name:string;email:string;role:string}>('/auth/users',{method:'POST',body:JSON.stringify(data)}),
+  deleteUser:(id:string)=>request<{success:boolean;message:string}>(`/auth/users/${id}`,{method:'DELETE'})
 };
