@@ -55,19 +55,9 @@ export function OffersPage(){
 
         <div className="table-wrap">
           <table className="offers-table">
-            <colgroup>
-              <col style={{width:'3%'}}/>
-              <col style={{width:'30%'}}/>
-              <col style={{width:'13%'}}/>
-              <col style={{width:'15%'}}/>
-              <col style={{width:'11%'}}/>
-              <col style={{width:'14%'}}/>
-              <col style={{width:'7%'}} className="hide-on-compact"/>
-              <col style={{width:'7%'}}/>
-            </colgroup>
             <thead>
               <tr>
-                <th><input type="checkbox"/></th>
+                <th style={{width:'32px'}}><input type="checkbox"/></th>
                 <th>OFERTA</th>
                 <th>MARKETPLACE</th>
                 <th>PREÇO</th>
@@ -94,9 +84,11 @@ export function OffersPage(){
                   </td>
                   <td><span className="market-text">{o.marketplace}</span></td>
                   <td>
-                    <div>
-                      <b>{money.format(o.currentPrice)}</b>
-                      {o.previousPrice && <small className="old-price">{money.format(o.previousPrice)}</small>}
+                    <div className="price-cell">
+                      <div className="price-cell-main">
+                        <b>{money.format(o.currentPrice)}</b>
+                        {o.previousPrice && <del>{money.format(o.previousPrice)}</del>}
+                      </div>
                       {(() => {
                         const commPercent = o.category.toLowerCase().includes('casa') ? 11 :
                                             o.category.toLowerCase().includes('celular') ? 7 :
@@ -106,11 +98,9 @@ export function OffersPage(){
                                             o.category.toLowerCase().includes('game') ? 8 : 9;
                         const commissionEarned = o.currentPrice * (commPercent / 100);
                         return (
-                          <div style={{fontSize:'10px',color:'#047857',fontWeight:700,marginTop:'3px',display:'flex',alignItems:'center',gap:'4px'}}>
-                            <span style={{background:'#ecfdf5',border:'1px solid #a7f3d0',borderRadius:'4px',padding:'1px 5px'}}>
-                              {commPercent}%
-                            </span>
-                            <span>ganha {money.format(commissionEarned)}</span>
+                          <div className="comm-badge">
+                            <span className="comm-pill">{commPercent}%</span>
+                            <span className="comm-val">ganha {money.format(commissionEarned)}</span>
                           </div>
                         );
                       })()}
