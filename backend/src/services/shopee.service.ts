@@ -5,6 +5,8 @@ export interface ShopeeProductItem {
   itemId: string | number;
   title: string;
   price: number;
+  oldPrice: number;
+  discount: number;
   imageUrl: string;
   offerLink: string;
   commissionRate: number;
@@ -92,6 +94,7 @@ export const shopeeService = {
             itemId
             productName
             price
+            priceDiscountRate
             imageUrl
             offerLink
             commissionRate
@@ -107,6 +110,7 @@ export const shopeeService = {
           itemId: number | string;
           productName: string;
           price: string;
+          priceDiscountRate?: number;
           imageUrl: string;
           offerLink: string;
           commissionRate: string;
@@ -120,10 +124,14 @@ export const shopeeService = {
       const price = parseFloat(n.price) || 0;
       const rate = parseFloat(n.commissionRate) || 0;
       const commission = parseFloat(n.commission) || (price * rate);
+      const discount = Math.max(0, Math.min(99, Number(n.priceDiscountRate || 0)));
+      const oldPrice = discount > 0 ? price / (1 - discount / 100) : price;
       return {
         itemId: n.itemId,
         title: n.productName,
         price,
+        oldPrice: Math.round(oldPrice * 100) / 100,
+        discount,
         imageUrl: n.imageUrl,
         offerLink: n.offerLink,
         commissionRate: Math.round(rate * 100),

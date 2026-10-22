@@ -31,7 +31,10 @@ function saoPauloParts(date = new Date()) {
 
 function formatMoney(value:number) { return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value); }
 function renderMessage(template:string, product:Product) {
-  return template
+  const safeTemplate = product.oldPrice > product.price
+    ? template
+    : template.replace(/De\s+~?(?:R\$\s*)?\{preco_anterior\}~?\s+por\s+/gi, 'Por ');
+  return safeTemplate
     .replaceAll('{produto}', product.title)
     .replaceAll('{preco}', formatMoney(product.price))
     .replaceAll('{preco_anterior}', formatMoney(product.oldPrice || product.price))
@@ -47,8 +50,8 @@ async function loadProducts(config:AutomationConfig):Promise<Product[]> {
     ]);
     for (const result of [offers, flash]) if (result.status === 'fulfilled') {
       products.push(...result.value.items.map(item => ({
-        id:`shopee-${item.itemId}`, title:item.title, price:item.price, oldPrice:item.price,
-        discount:0, link:item.offerLink, marketplace:'Shopee'
+        id:`shopee-${item.itemId}`, title:item.title, price:item.price, oldPrice:item.oldPrice,
+        discount:item.discount, link:item.offerLink, marketplace:'Shopee'
       })));
     }
   }

@@ -62,7 +62,7 @@ export const api={
   deleteAutomationConfig:(id:string)=>request<{deleted:boolean}>(`/automations/configs/${encodeURIComponent(id)}`,{method:'DELETE'}),
   getProfile:()=>request<{id:string;name:string;email:string;role:string;updatedAt?:string}>('/auth/me'),
   getShopeeStatus:()=>request<{configured:boolean;connected:boolean;status:string;appId?:string}>('/integrations/shopee/status'),
-  getShopeeTopOffers:(page=1,limit=24,keyword?:string)=>request<{total:number;items:Array<{itemId:string|number;title:string;price:number;imageUrl:string;offerLink:string;commissionRate:number;commission:number}>}>(`/integrations/shopee/top-offers?page=${page}&limit=${limit}${keyword?`&keyword=${encodeURIComponent(keyword)}`:''}`),
+  getShopeeTopOffers:(page=1,limit=24,keyword?:string)=>request<{total:number;items:Array<{itemId:string|number;title:string;price:number;oldPrice:number;discount:number;imageUrl:string;offerLink:string;commissionRate:number;commission:number}>}>(`/integrations/shopee/top-offers?page=${page}&limit=${limit}${keyword?`&keyword=${encodeURIComponent(keyword)}`:''}`),
   generateShopeeLink:(url:string,subIds?:string[])=>request<{shortLink:string}>('/integrations/shopee/generate-link',{method:'POST',body:JSON.stringify({url,subIds})}),
   updateProfile:(data:{id?:string;name?:string;email?:string;currentPassword?:string;newPassword?:string;role?:string})=>request<{id:string;name:string;email:string;role:string}>('/auth/profile',{method:'PUT',body:JSON.stringify(data)}),
   listUsers:()=>request<Array<{id:string;name:string;email:string;role:string;createdAt:string;updatedAt:string}>>('/auth/users'),
