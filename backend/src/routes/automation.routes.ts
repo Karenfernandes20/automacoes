@@ -9,7 +9,7 @@ router.get('/status', async (_req: Request, res: Response) => {
     const hasKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
     res.json({
       configured: hasKey,
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       capabilities: ['whatsapp_copy', 'video_scripts', 'visual_prompts', 'google_flow']
     });
   } catch (error) {

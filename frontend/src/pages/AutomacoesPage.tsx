@@ -120,7 +120,7 @@ export function AutomacoesPage() {
             fontWeight: 700
           }}>
             <Sparkles size={14} color="#0284c7" />
-            Gemini 1.5 Flash Conectado
+            {status?.configured ? `Gemini 2.5 Flash Conectado` : 'Google Gemini Pendente'}
           </div>
         </div>
       </div>
