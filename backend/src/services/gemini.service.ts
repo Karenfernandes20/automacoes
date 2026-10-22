@@ -188,26 +188,29 @@ Format the output strictly as JSON with keys: "imagePrompt" and "videoPrompt".`;
       description: string;
     }>;
   }> {
-    const prompt = `Analise este produto de e-commerce e determine o nicho exato para divulgação e grupos ideais no Facebook no Brasil:
+    const prompt = `Analise este produto e identifique as MELHORES COMUNIDADES ORGÂNICAS E GRUPOS DE INTERESSE no Facebook no Brasil onde as pessoas compram por indicação e necessidade real:
 Produto: "${productTitle}"
-Categoria: "${category}"
+Categoria informada: "${category}"
 
-Identifique:
-1. O nicho do produto (ex: Mães & Bebês, Casa e Decoração, Eletrônicos & Achadinhos, Beleza & Skincare, Fitness, Moda Feminina).
-2. 4 palavras-chave de busca para grupos no Facebook.
-3. 5 perfis/temas de grupos de Facebook altamente recomendados para postar esse produto, com nome típico do grupo, membros estimados (ex: "85 mil membros"), termo de busca do grupo e descrição do porquê converte.
+ATENÇÃO À REGRA CRUCIAL:
+NÃO sugira grupos genéricos de "Achadinhos", "Promoções", "Cupons" ou "Ofertas".
+Sugira GRUPOS TEMÁTICOS E COMUNIDADES REAIS de pessoas apaixonadas pelo assunto do produto, por exemplo:
+- Se for utensílio de cozinha/panela/pote: Grupos de "Dona de Casa", "Receitas Fáceis e Deliciosas", "Dicas para o Lar e Cozinha", "Mesa Posta & Cozinha Fofa", "Airfryer Receitas & Dicas", "Apartamento Novo / Enxoval".
+- Se for produto de bebê/criança: Grupos de "Mães de Primeira Viagem", "Maternidade Real", "Dicas de Enxoval e Bebês", "Desmame e Introdução Alimentar".
+- Se for maquiagem/beleza: "Dicas de Skincare e Maquiagem", "Cabelos Cacheados / Cronograma Capilar".
+- Se for fitness: "Vida Saudável e Emagrecimento", "Treino em Casa e Dicas Fit".
 
-Retorne SOMENTE um JSON válido com o seguinte formato:
+Retorne SOMENTE um JSON válido com o formato:
 {
-  "niche": "Nome do nicho",
-  "keywords": ["termo 1", "termo 2", "termo 3", "termo 4"],
+  "niche": "Nome da Comunidade / Tema (ex: Donas de Casa & Culinária)",
+  "keywords": ["dona de casa", "receitas da vovo", "dicas para o lar", "cozinha pratica"],
   "groups": [
     {
-      "name": "Nome sugerido do grupo (ex: Mamães e Bebês Dicas & Compras)",
-      "category": "Maternidade",
-      "estimatedMembers": "120 mil membros",
-      "searchQuery": "termo para buscar no facebook",
-      "description": "Mães ativas trocando indicações de fraldas e produtos infantis."
+      "name": "Nome real ou típico de grupo ativo (ex: Donas de Casa Organizadas e Prendadas)",
+      "category": "Casa e Cozinha",
+      "estimatedMembers": "280 mil membros",
+      "searchQuery": "termo exato para pesquisar no facebook (ex: donas de casa organizadas)",
+      "description": "Mulheres que compartilham a rotina da casa e adoram dicas de utensílios que facilitam o dia a dia."
     }
   ]
 }`;
@@ -222,36 +225,37 @@ Retorne SOMENTE um JSON válido com o seguinte formato:
         return {
           name: g.name,
           category: g.category || parsed.niche,
-          estimatedMembers: g.estimatedMembers || '50 mil+ membros',
+          estimatedMembers: g.estimatedMembers || '100 mil+ membros',
           searchQuery: query,
           directUrl: `https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(query)}`,
-          description: g.description || 'Grupo altamente qualificado para ofertas deste produto.'
+          description: g.description || 'Comunidade ativa com alto engajamento em recomendações.'
         };
       });
 
       return {
-        niche: parsed.niche || category || 'Achadinhos e Ofertas',
-        keywords: parsed.keywords || [category, 'ofertas', 'achadinhos'],
+        niche: parsed.niche || 'Donas de Casa & Dicas do Lar',
+        keywords: parsed.keywords || ['donas de casa', 'receitas', 'dicas para o lar'],
         groups
       };
     } catch (e) {
       console.warn('Gemini group generation fallback:', e);
       const terms = [
-        `Achadinhos ${category}`,
-        `Grupo de Ofertas ${category}`,
-        `Promoções e Cupons`,
-        `Dicas de Compras`
+        `Donas de Casa e Receitas`,
+        `Dicas Para o Lar e Cozinha`,
+        `Amigas Donas de Casa`,
+        `Receitas Práticas da Vovó`,
+        `Cozinha Prática e Organizada`
       ];
       return {
-        niche: category || 'Achadinhos e Ofertas',
-        keywords: [category, 'achadinhos', 'ofertas', 'descontos'],
+        niche: 'Donas de Casa & Culinária',
+        keywords: ['donas de casa', 'receitas', 'cozinha prática'],
         groups: terms.map(t => ({
           name: `${t} Brasil`,
-          category: category || 'Geral',
-          estimatedMembers: '70 mil membros',
+          category: 'Culinária e Lar',
+          estimatedMembers: '150 mil membros',
           searchQuery: t,
           directUrl: `https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(t)}`,
-          description: 'Público interessado em indicações, promoções e compras online.'
+          description: 'Público engajado que adora dicas, receitas e produtos funcionais para o lar.'
         }))
       };
     }
