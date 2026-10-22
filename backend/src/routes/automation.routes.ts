@@ -79,4 +79,20 @@ router.post('/generate-visual-prompts', async (req: Request, res: Response) => {
   }
 });
 
+// Identify niche and suggested Facebook groups for a product
+router.post('/niche-groups', async (req: Request, res: Response) => {
+  try {
+    const { productTitle, category } = req.body;
+    if (!productTitle) {
+      return res.status(400).json({ error: 'Título do produto é obrigatório.' });
+    }
+
+    const data = await GeminiFlowService.findFacebookNicheGroups(productTitle, category || 'Geral');
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 export default router;
+

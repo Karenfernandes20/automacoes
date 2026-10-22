@@ -1,9 +1,11 @@
-import { FormEvent, useMemo, useState } from 'react'; import { Check, ChevronDown, Copy, Edit3, ExternalLink, Eye, Filter, Link2, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'; import type { Offer, OfferInput } from '@central/shared'; import { MARKETPLACES } from '@central/shared'; import { useOffers } from '../hooks/useOffers'; import { api } from '../lib/api'; import { money, date } from '../lib/format'; import { StatusBadge } from '../components/StatusBadge';
+import { FormEvent, useMemo, useState } from 'react'; import { Check, ChevronDown, Copy, Edit3, ExternalLink, Eye, Filter, Link2, MoreHorizontal, Plus, Search, Share2, Sparkles, Trash2, X } from 'lucide-react'; import type { Offer, OfferInput } from '@central/shared'; import { MARKETPLACES } from '@central/shared'; import { useOffers } from '../hooks/useOffers'; import { api } from '../lib/api'; import { money, date } from '../lib/format'; import { StatusBadge } from '../components/StatusBadge';
+import { PublishModal } from '../components/PublishModal';
 export function OffersPage(){
   const {offers,loading,error,refresh}=useOffers();
   const [query,setQuery]=useState('');
   const [status,setStatus]=useState('Todos');
   const [editing,setEditing]=useState<Offer|null>(null);
+  const [publishing,setPublishing]=useState<Offer|null>(null);
   const [creating,setCreating]=useState(false);
   const [toast,setToast]=useState('');
   const [copiedId, setCopiedId] = useState<string|null>(null);
@@ -141,7 +143,29 @@ export function OffersPage(){
                   </td>
                   <td className="hide-on-compact"><small>{date(o.verifiedAt)}</small></td>
                   <td>
-                    <div className="row-actions" style={{justifyContent:'flex-end'}}>
+                    <div className="row-actions" style={{justifyContent:'flex-end',gap:'6px'}}>
+                      <button 
+                        className="btn small"
+                        style={{
+                          background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                          color: '#fff',
+                          padding: '5px 10px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          borderRadius: '6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
+                          border: 0,
+                          cursor: 'pointer'
+                        }}
+                        title="Abrir divulgação com IA e grupos recomendados no Facebook"
+                        onClick={() => setPublishing(o)}
+                      >
+                        <Sparkles size={12} /> Divulgar
+                      </button>
+
                       {o.status==='PENDING'&&<button title="Aprovar" onClick={()=>changeStatus(o,'APPROVED')}><Check/></button>}
                       {o.status==='APPROVED'&&<button title="Publicar" onClick={()=>changeStatus(o,'PUBLISHED')}><Eye/></button>}
                       <button title="Editar oferta" onClick={()=>setEditing(o)}><Edit3/></button>
@@ -161,6 +185,17 @@ export function OffersPage(){
         Exibindo {rows.length} de {offers.length} ofertas 
         <div><button>‹</button><button className="active">1</button><button>2</button><button>›</button></div>
       </div>
+
+      {publishing && (
+        <PublishModal
+          offer={publishing}
+          onClose={() => setPublishing(null)}
+          onPublished={async () => {
+            await refresh();
+            notify('Oferta divulgada e marcada como Publicada!');
+          }}
+        />
+      )}
 
       {(creating||editing)&&<OfferModal offer={editing} onClose={()=>{setCreating(false);setEditing(null)}} onSaved={async()=>{setCreating(false);setEditing(null);await refresh();notify('Oferta salva com sucesso.')}}/>}
       {toast&&<div className="toast"><Check/>{toast}</div>}

@@ -169,4 +169,89 @@ Format the output strictly as JSON with keys: "imagePrompt" and "videoPrompt".`;
       };
     }
   }
+
+  /**
+   * Identifies the niche and recommends top public Facebook groups for the product
+   */
+  public static async findFacebookNicheGroups(productTitle: string, category: string): Promise<{
+    niche: string;
+    keywords: string[];
+    groups: Array<{
+      name: string;
+      category: string;
+      estimatedMembers: string;
+      searchQuery: string;
+      directUrl: string;
+      description: string;
+    }>;
+  }> {
+    const prompt = `Analise este produto de e-commerce e determine o nicho exato para divulgação e grupos ideais no Facebook no Brasil:
+Produto: "${productTitle}"
+Categoria: "${category}"
+
+Identifique:
+1. O nicho do produto (ex: Mães & Bebês, Casa e Decoração, Eletrônicos & Achadinhos, Beleza & Skincare, Fitness, Moda Feminina).
+2. 4 palavras-chave de busca para grupos no Facebook.
+3. 5 perfis/temas de grupos de Facebook altamente recomendados para postar esse produto, com nome típico do grupo, membros estimados (ex: "85 mil membros"), termo de busca do grupo e descrição do porquê converte.
+
+Retorne SOMENTE um JSON válido com o seguinte formato:
+{
+  "niche": "Nome do nicho",
+  "keywords": ["termo 1", "termo 2", "termo 3", "termo 4"],
+  "groups": [
+    {
+      "name": "Nome sugerido do grupo (ex: Mamães e Bebês Dicas & Compras)",
+      "category": "Maternidade",
+      "estimatedMembers": "120 mil membros",
+      "searchQuery": "termo para buscar no facebook",
+      "description": "Mães ativas trocando indicações de fraldas e produtos infantis."
+    }
+  ]
+}`;
+
+    try {
+      const raw = await this.generateGeminiText(prompt);
+      const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      const groups = (parsed.groups || []).map((g: any) => {
+        const query = g.searchQuery || g.name || productTitle;
+        return {
+          name: g.name,
+          category: g.category || parsed.niche,
+          estimatedMembers: g.estimatedMembers || '50 mil+ membros',
+          searchQuery: query,
+          directUrl: `https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(query)}`,
+          description: g.description || 'Grupo altamente qualificado para ofertas deste produto.'
+        };
+      });
+
+      return {
+        niche: parsed.niche || category || 'Achadinhos e Ofertas',
+        keywords: parsed.keywords || [category, 'ofertas', 'achadinhos'],
+        groups
+      };
+    } catch (e) {
+      console.warn('Gemini group generation fallback:', e);
+      const terms = [
+        `Achadinhos ${category}`,
+        `Grupo de Ofertas ${category}`,
+        `Promoções e Cupons`,
+        `Dicas de Compras`
+      ];
+      return {
+        niche: category || 'Achadinhos e Ofertas',
+        keywords: [category, 'achadinhos', 'ofertas', 'descontos'],
+        groups: terms.map(t => ({
+          name: `${t} Brasil`,
+          category: category || 'Geral',
+          estimatedMembers: '70 mil membros',
+          searchQuery: t,
+          directUrl: `https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(t)}`,
+          description: 'Público interessado em indicações, promoções e compras online.'
+        }))
+      };
+    }
+  }
 }
+
