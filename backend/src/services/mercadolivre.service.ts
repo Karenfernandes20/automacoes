@@ -362,49 +362,65 @@ export const mercadoLivreService = {
     const ranked = rankings.flat().filter((entry, index, all) => all.findIndex(other => other.id === entry.id) === index).slice(0, 32);
 
     const loadDetail = async (entry: typeof ranked[number]) => {
-      const endpoint = entry.type === 'PRODUCT' ? `products/${entry.id}` : `items/${entry.id}`;
-      const response = await fetch(`https://api.mercadolibre.com/${endpoint}`, { headers });
-      if (!response.ok) return null;
-      const catalogBody = await response.json();
-      let body = catalogBody;
-
-      // O endpoint de produto de catálogo não fornece sempre o permalink.
-      // Resolvemos o anúncio vencedor (MLB...) e buscamos seus dados públicos.
       if (entry.type === 'PRODUCT') {
-        let winnerId = catalogBody.buy_box_winner?.item_id;
-        if (!winnerId) {
-          const listingsResponse = await fetch(`https://api.mercadolibre.com/products/${entry.id}/items`, { headers });
-          if (!listingsResponse.ok) return null;
-          const listingsBody = await listingsResponse.json();
-          const listings = Array.isArray(listingsBody.results) ? listingsBody.results : [];
-          const preferred = listings.find((listing: { item_id?: string; original_price?: number; price?: number }) =>
-            listing.item_id && Number(listing.original_price || 0) > Number(listing.price || 0)
-          ) || listings.find((listing: { item_id?: string }) => listing.item_id);
-          winnerId = preferred?.item_id;
-        }
-        if (!winnerId) return null;
-        const itemResponse = await fetch(`https://api.mercadolibre.com/items/${winnerId}`, { headers });
-        if (!itemResponse.ok) return null;
-        body = await itemResponse.json();
+        const response = await fetch(`https://api.mercadolibre.com/products/${entry.id}`, { headers });
+        if (!response.ok) return null;
+        const catalogBody = await response.json();
+
+        // Buscar dados de preço e frete nas ofertas ativas do produto
+        const listingsResponse = await fetch(`https://api.mercadolibre.com/products/${entry.id}/items`, { headers });
+        const listingsBody = listingsResponse.ok ? await listingsResponse.json() : {};
+        const listings = Array.isArray(listingsBody.results) ? listingsBody.results : [];
+        const preferred = listings.find((listing: { original_price?: number; price?: number }) =>
+          Number(listing.original_price || 0) > Number(listing.price || 0)
+        ) || listings[0] || null;
+
+        const price = Number(preferred?.price || catalogBody.buy_box_winner?.price || 0);
+        if (!price && !catalogBody.name) return null;
+        const oldPrice = Number(preferred?.original_price || price);
+        const discount = oldPrice > price ? Math.round((1 - price / oldPrice) * 100) : 0;
+        const firstPic = catalogBody.pictures?.[0];
+        const imageUrl = String(firstPic?.url || firstPic?.secure_url || '').replace(/^http:/, 'https:');
+        const itemId = preferred?.item_id;
+        const url = itemId ? `https://produto.mercadolivre.com.br/${itemId}` : `https://www.mercadolivre.com.br/p/${entry.id}`;
+
+        return {
+          id: entry.id,
+          title: catalogBody.name || 'Produto Mercado Livre',
+          categoryId: preferred?.category_id || params.category || 'MLB1055',
+          price,
+          oldPrice,
+          discount,
+          imageUrl,
+          url,
+          freeShipping: Boolean(preferred?.shipping?.free_shipping),
+          condition: preferred?.condition || 'new',
+          availableQuantity: 10,
+          officialStoreName: null,
+          installments: null,
+          ranking: entry.position
+        };
       }
 
-      const winner = body;
-      const permalink = body.permalink;
-      if (!winner || !permalink) return null;
-      const price = Number(winner.price || 0);
-      const oldPrice = Number(winner.original_price || winner.base_price || price);
+      // Se for ITEM avulso
+      const response = await fetch(`https://api.mercadolibre.com/items/${entry.id}`, { headers });
+      if (!response.ok) return null;
+      const body = await response.json();
+      const permalink = body.permalink || `https://produto.mercadolivre.com.br/${entry.id}`;
+      const price = Number(body.price || 0);
+      const oldPrice = Number(body.original_price || body.base_price || price);
       return {
-        id: body.id,
-        title: body.title || catalogBody.name,
-        categoryId: body.category_id,
+        id: body.id || entry.id,
+        title: body.title || 'Produto Mercado Livre',
+        categoryId: body.category_id || params.category || 'MLB1055',
         price,
         oldPrice,
         discount: oldPrice > price ? Math.round((1 - price / oldPrice) * 100) : 0,
-        imageUrl: String(body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || catalogBody.pictures?.[0]?.secure_url || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
+        imageUrl: String(body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
         url: permalink,
-        freeShipping: Boolean(winner.shipping?.free_shipping),
-        condition: winner.condition || 'new',
-        availableQuantity: winner.available_quantity || 0,
+        freeShipping: Boolean(body.shipping?.free_shipping),
+        condition: body.condition || 'new',
+        availableQuantity: body.available_quantity || 0,
         officialStoreName: null,
         installments: null,
         ranking: entry.position
