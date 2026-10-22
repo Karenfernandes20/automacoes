@@ -40,10 +40,19 @@ export function MercadoLivreOffersPage() {
   const [sorts, setSorts] = useState<Array<{id:string;name:string}>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     api.getMercadoLivreCategories().then(setCategories).catch(err => setError(err instanceof Error ? err.message : 'Falha ao carregar categorias.'));
+    api.listOffers().then(offers => {
+      const savedUrls = new Set<string>();
+      offers.forEach(o => {
+        if (o.originalUrl) savedUrls.add(o.originalUrl);
+        if (o.title) savedUrls.add(o.title.toLowerCase().trim());
+      });
+      setSavedIds(savedUrls);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -91,14 +100,16 @@ export function MercadoLivreOffersPage() {
   }
 
   async function saveOffer(item: CatalogItem) {
+    const isAlreadySaved = savedIds.has(item.url) || savedIds.has(item.title.toLowerCase().trim());
+    if (isAlreadySaved) return;
+
     try {
-      setSavedId(item.id);
+      setSavingId(item.id);
       let affiliateUrl = item.url;
       try {
         const linkRes = await api.generateMercadoLivreLink(item.url, 'central-ofertas');
         if (linkRes.affiliateUrl) affiliateUrl = linkRes.affiliateUrl;
       } catch {
-        // Fallback com parâmetros de tracking direto
         const urlObj = new URL(item.url);
         urlObj.searchParams.set('matt_tool', 'central-ofertas');
         urlObj.searchParams.set('tracking_id', 'central-ofertas');
@@ -121,10 +132,16 @@ export function MercadoLivreOffersPage() {
         publishAt: null
       });
 
-      setTimeout(() => setSavedId(null), 3000);
+      setSavedIds(prev => {
+        const next = new Set(prev);
+        next.add(item.url);
+        next.add(item.title.toLowerCase().trim());
+        return next;
+      });
     } catch (err) {
-      setSavedId(null);
       alert(err instanceof Error ? err.message : 'Não foi possível salvar a oferta.');
+    } finally {
+      setSavingId(null);
     }
   }
 
@@ -275,21 +292,36 @@ export function MercadoLivreOffersPage() {
 
                       {/* Ações */}
                       <div style={{display:'flex',gap:'5px',paddingTop:'2px'}}>
-                        <button
-                          className="btn primary"
-                          onClick={()=>saveOffer(item)}
-                          style={{
-                            flex:1,
-                            justifyContent:'center',
-                            fontSize:'11px',
-                            padding:'6px 8px',
-                            background:savedId===item.id?'#00a650':'#3483fa',
-                            borderColor:savedId===item.id?'#00a650':'#3483fa'
-                          }}
-                        >
-                          {savedId===item.id ? <Check size={13}/> : <Plus size={13}/>}
-                          {savedId===item.id ? 'Salvo' : 'Salvar oferta'}
-                        </button>
+                        {(() => {
+                          const isSaved = savedIds.has(item.url) || savedIds.has(item.title.toLowerCase().trim());
+                          const isSaving = savingId === item.id;
+                          return (
+                            <button
+                              className="btn primary"
+                              disabled={isSaved || isSaving}
+                              onClick={()=>saveOffer(item)}
+                              style={{
+                                flex:1,
+                                justifyContent:'center',
+                                fontSize:'11px',
+                                padding:'6px 8px',
+                                background: isSaved ? '#10b981' : '#3483fa',
+                                borderColor: isSaved ? '#10b981' : '#3483fa',
+                                opacity: isSaved ? 0.9 : 1,
+                                cursor: isSaved ? 'default' : 'pointer'
+                              }}
+                            >
+                              {isSaving ? (
+                                <RefreshCw size={13} style={{animation:'spin 1s linear infinite'}}/>
+                              ) : isSaved ? (
+                                <Check size={13}/>
+                              ) : (
+                                <Plus size={13}/>
+                              )}
+                              {isSaving ? 'Salvando...' : isSaved ? 'Salva' : 'Salvar oferta'}
+                            </button>
+                          );
+                        })()}
                         <a
                           className="outline-btn"
                           href={item.url}

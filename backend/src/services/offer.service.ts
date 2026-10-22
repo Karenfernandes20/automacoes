@@ -7,8 +7,17 @@ export const offerService={
  async get(id:string){return (await load()).find(x=>x.id===id)},
  async create(input:OfferInput){
    const now=new Date().toISOString();
-   const item:Offer={...input,id:randomUUID(),createdAt:now,updatedAt:now};
    const rows=await load();
+   const existingIndex = rows.findIndex(x => 
+     (input.originalUrl && x.originalUrl === input.originalUrl) ||
+     (input.title && x.title.toLowerCase().trim() === input.title.toLowerCase().trim())
+   );
+   if (existingIndex >= 0) {
+     rows[existingIndex] = { ...rows[existingIndex], ...input, updatedAt: now };
+     await save(rows);
+     return rows[existingIndex];
+   }
+   const item:Offer={...input,id:randomUUID(),createdAt:now,updatedAt:now};
    await save([item,...rows]);
    return item;
  },
