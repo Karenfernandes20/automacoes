@@ -332,10 +332,10 @@ export const mercadoLivreService = {
       await findLeaves(params.category, 8);
     } else {
       const categories = await this.getCatalogCategories();
-      rootIds = categories.slice(0, 16).map(category => category.id);
-      for (const category of categories.slice(0, 12)) {
-        await findLeaves(category.id, 12);
-        if (leafIds.length >= 12) break;
+      rootIds = categories.slice(0, 8).map(category => category.id);
+      for (const category of categories.slice(0, 8)) {
+        await findLeaves(category.id, 8);
+        if (leafIds.length >= 8) break;
       }
     }
 
@@ -349,9 +349,9 @@ export const mercadoLivreService = {
       const body = await response.json() as { content?: Array<{ id: string; type: 'ITEM'|'PRODUCT'|'USER_PRODUCT'; position: number }> };
       return body.content || [];
     }));
-    const ranked = rankings.flat().filter((entry, index, all) => all.findIndex(other => other.id === entry.id) === index).slice(0, 120);
+    const ranked = rankings.flat().filter((entry, index, all) => all.findIndex(other => other.id === entry.id) === index).slice(0, 48);
 
-    const details = await Promise.all(ranked.map(async entry => {
+    const loadDetail = async (entry: typeof ranked[number]) => {
       const endpoint = entry.type === 'PRODUCT' ? `products/${entry.id}` : `items/${entry.id}`;
       const response = await fetch(`https://api.mercadolibre.com/${endpoint}`, { headers });
       if (!response.ok) return null;
@@ -377,7 +377,14 @@ export const mercadoLivreService = {
         installments: null,
         ranking: entry.position
       };
-    }));
+    };
+
+    // Evita dezenas de requisições simultâneas, que podem exceder a memória
+    // disponível no plano gratuito do Render e reiniciar o processo.
+    const details: Array<Awaited<ReturnType<typeof loadDetail>>> = [];
+    for (let index = 0; index < ranked.length; index += 6) {
+      details.push(...await Promise.all(ranked.slice(index, index + 6).map(loadDetail)));
+    }
 
     let items = details.filter((item): item is NonNullable<typeof item> => Boolean(item));
     if (params.query?.trim()) {
