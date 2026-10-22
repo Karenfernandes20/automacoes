@@ -1,7 +1,29 @@
 import { Router, Request, Response } from 'express';
 import { GeminiFlowService } from '../services/gemini.service.js';
+import { automationRunner, type AutomationConfig } from '../services/automation-runner.service.js';
 
 const router = Router();
+
+router.get('/configs', async (_req, res) => {
+  try { res.json({ success:true, data:{ items:await automationRunner.list(), history:await automationRunner.history() } }); }
+  catch(error){ res.status(500).json({success:false,error:(error as Error).message}); }
+});
+router.put('/configs/:id', async (req, res) => {
+  try { res.json({success:true,data:await automationRunner.save({...req.body,id:req.params.id} as AutomationConfig)}); }
+  catch(error){ res.status(500).json({success:false,error:(error as Error).message}); }
+});
+router.patch('/configs/:id/status', async (req, res) => {
+  try { res.json({success:true,data:await automationRunner.setActive(req.params.id,Boolean(req.body.active))}); }
+  catch(error){ res.status(500).json({success:false,error:(error as Error).message}); }
+});
+router.post('/configs/:id/run', async (req, res) => {
+  try { const config=(await automationRunner.list()).find(item=>item.id===req.params.id); if(!config)return res.status(404).json({success:false,error:'Automação não encontrada.'}); res.json({success:true,data:await automationRunner.execute(config,true)}); }
+  catch(error){ res.status(500).json({success:false,error:(error as Error).message}); }
+});
+router.delete('/configs/:id', async (req, res) => {
+  try { await automationRunner.remove(req.params.id); res.json({success:true,data:{deleted:true}}); }
+  catch(error){ res.status(500).json({success:false,error:(error as Error).message}); }
+});
 
 // Test / status endpoint
 router.get('/status', async (_req: Request, res: Response) => {
@@ -95,4 +117,3 @@ router.post('/niche-groups', async (req: Request, res: Response) => {
 });
 
 export default router;
-

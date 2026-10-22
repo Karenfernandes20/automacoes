@@ -136,6 +136,8 @@ export function AutomacoesPage() {
     "categories" | "types" | "keywords"
   >("categories");
   const [feedback, setFeedback] = useState("");
+  const [listFeedback, setListFeedback] = useState("");
+  const [runningId, setRunningId] = useState("");
   const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
   const [catalogTotals, setCatalogTotals] = useState({
     mercadoLivre: 0,
@@ -149,6 +151,19 @@ export function AutomacoesPage() {
   useEffect(() => {
     localStorage.setItem("central_automations", JSON.stringify(saved));
   }, [saved]);
+  useEffect(() => {
+    let active = true;
+    api.listAutomationConfigs().then(async (result) => {
+      if (!active) return;
+      if (result.items.length) setSaved(result.items as Automation[]);
+      else if (saved.length) {
+        for (const item of saved) await api.saveAutomationConfig(item);
+        setListFeedback("Automação sincronizada com o servidor e pronta para executar.");
+      }
+    }).catch((error) => active && setListFeedback(error instanceof Error ? error.message : "Falha ao sincronizar automações."));
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (view === "wizard" && step === 3 && !groups.length) {
       setGroupLoading(true);
@@ -344,20 +359,44 @@ export function AutomacoesPage() {
     setStep((step - 1) as Step);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
-  function save() {
+  async function save() {
     const item = { ...draft, createdAt: new Date().toISOString() };
-    setSaved((old) => [item, ...old.filter((a) => a.id !== item.id)]);
-    setFeedback("Automação salva com sucesso.");
-    setView("list");
+    try {
+      await api.saveAutomationConfig(item);
+      setSaved((old) => [item, ...old.filter((a) => a.id !== item.id)]);
+      setListFeedback("Automação salva no servidor. Os disparos estão ativos conforme a agenda.");
+      setView("list");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Falha ao salvar a automação no servidor.");
+    }
   }
   function edit(item: Automation) {
     setDraft(item);
     setStep(1);
     setView("wizard");
   }
-  function remove(id: string) {
-    if (confirm("Excluir esta automação?"))
+  async function remove(id: string) {
+    if (confirm("Excluir esta automação?")) {
+      await api.deleteAutomationConfig(id);
       setSaved((old) => old.filter((a) => a.id !== id));
+    }
+  }
+  async function toggleActive(item: Automation) {
+    try {
+      const active = !item.active;
+      await api.setAutomationActive(item.id, active);
+      setSaved((old) => old.map((entry) => entry.id === item.id ? { ...entry, active } : entry));
+      setListFeedback(active ? "Automação ativada no servidor." : "Automação pausada.");
+    } catch (error) { setListFeedback(error instanceof Error ? error.message : "Falha ao alterar a automação."); }
+  }
+  async function runNow(item: Automation) {
+    setRunningId(item.id);
+    setListFeedback("Enviando uma execução de teste agora...");
+    try {
+      const result = await api.runAutomationNow(item.id);
+      setListFeedback(result.sent ? `Teste concluído: ${result.sent} mensagem(ns) enviada(s).` : `Nenhuma mensagem enviada: ${result.error || "verifique as integrações."}`);
+    } catch (error) { setListFeedback(error instanceof Error ? error.message : "Falha no teste de envio."); }
+    finally { setRunningId(""); }
   }
 
   if (view === "list" || view === "history")
@@ -398,6 +437,7 @@ export function AutomacoesPage() {
             </button>
           </div>
         </div>
+        {listFeedback && <div className="auto-info"><Sparkles />{listFeedback}</div>}
         {saved.length === 0 ? (
           <div className="auto-empty">
             <Zap />
@@ -447,16 +487,13 @@ export function AutomacoesPage() {
                   <input
                     type="checkbox"
                     checked={item.active}
-                    onChange={() =>
-                      setSaved((old) =>
-                        old.map((a) =>
-                          a.id === item.id ? { ...a, active: !a.active } : a,
-                        ),
-                      )
-                    }
+                    onChange={() => void toggleActive(item)}
                   />
                   <i />
                 </label>
+                <button className="auto-icon-btn run" title="Executar agora" disabled={runningId === item.id} onClick={() => void runNow(item)}>
+                  <PlayCircle />
+                </button>
                 <button className="auto-icon-btn" onClick={() => edit(item)}>
                   <Settings2 />
                 </button>

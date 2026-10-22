@@ -206,5 +206,18 @@ export const wuzapiService = {
       text: String(message.text_content || ''),
       mediaUrl: message.media_link ? String(message.media_link) : undefined
     }));
+  },
+
+  async sendText(chatJid: string, body: string) {
+    const status = await this.getStatus();
+    if (!status.connected || !status.loggedIn) throw new Error('O WhatsApp não está conectado na WuzAPI.');
+    const response = await fetch(`${this.getBaseUrl()}/chat/send/text`, {
+      method: 'POST',
+      headers: { token: this.getUserToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ Phone: chatJid, Body: body, LinkPreview: true })
+    });
+    const result = await response.json().catch(() => ({})) as { success?: boolean; error?: string; data?: unknown };
+    if (!response.ok || result.success === false) throw new Error(result.error || `Falha ao enviar mensagem (${response.status}).`);
+    return result.data || result;
   }
 };

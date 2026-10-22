@@ -1,2 +1,2 @@
-import { app } from './app.js'; import { env } from './config/env.js';
-app.listen(env.PORT,()=>console.log(`API pronta em http://localhost:${env.PORT}/api`));
+import { app } from './app.js'; import { env } from './config/env.js'; import { startAutomationRunner } from './services/automation-runner.service.js';
+app.listen(env.PORT,()=>{console.log(`API pronta em http://localhost:${env.PORT}/api`);startAutomationRunner();});
