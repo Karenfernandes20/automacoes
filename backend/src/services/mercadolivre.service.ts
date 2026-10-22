@@ -446,6 +446,7 @@ export const mercadoLivreService = {
     const first = highlightsBody.content?.[0];
     let product: Record<string, unknown> | null = null;
     let item: Record<string, unknown> | null = null;
+    let productItems: Record<string, unknown> | null = null;
     if (first?.id) {
       const productResponse = await fetch(`https://api.mercadolibre.com/products/${first.id}`, { headers });
       const productBody = await productResponse.json().catch(() => ({}));
@@ -455,6 +456,15 @@ export const mercadoLivreService = {
         keys: Object.keys(productBody).slice(0, 25),
         winnerKeys: winner ? Object.keys(winner).slice(0, 25) : [],
         winnerItemId: winner?.item_id || winner?.id || null
+      };
+      const productItemsResponse = await fetch(`https://api.mercadolibre.com/products/${first.id}/items`, { headers });
+      const productItemsBody = await productItemsResponse.json().catch(() => ({}));
+      productItems = {
+        status: productItemsResponse.status,
+        keys: Object.keys(productItemsBody).slice(0, 25),
+        resultCount: Array.isArray(productItemsBody.results) ? productItemsBody.results.length : Array.isArray(productItemsBody) ? productItemsBody.length : null,
+        firstKeys: Object.keys(productItemsBody.results?.[0] || productItemsBody[0] || {}).slice(0, 25),
+        error: productItemsBody.error || productItemsBody.message || null
       };
       const itemId = winner?.item_id || winner?.id;
       if (itemId) {
@@ -468,7 +478,8 @@ export const mercadoLivreService = {
       highlights: await summarize(`https://api.mercadolibre.com/highlights/MLB/category/${category}`),
       search: await summarize(`https://api.mercadolibre.com/sites/MLB/search?q=celular&limit=1`),
       product,
-      item
+      item,
+      productItems
     };
   },
 
