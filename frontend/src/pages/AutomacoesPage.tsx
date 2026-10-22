@@ -37,6 +37,7 @@ type CatalogProduct = {
   price: number;
   imageUrl: string;
   marketplace: "Mercado Livre" | "Shopee";
+  offerType?: "Oferta" | "Oferta Relâmpago";
 };
 type Automation = {
   id: string;
@@ -57,6 +58,7 @@ type Automation = {
   negativeWords: string;
   noRepeatHours: number;
   shopeeVideos: boolean;
+  shopeeOfferTypes: string[];
 };
 
 const week = [
@@ -112,6 +114,7 @@ const blank = (): Automation => ({
   negativeWords: "",
   noRepeatHours: 24,
   shopeeVideos: false,
+  shopeeOfferTypes: ["Oferta", "Oferta Relâmpago"],
 });
 
 export function AutomacoesPage() {
@@ -137,6 +140,7 @@ export function AutomacoesPage() {
   const [catalogTotals, setCatalogTotals] = useState({
     mercadoLivre: 0,
     shopee: 0,
+    shopeeFlash: 0,
   });
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
@@ -162,8 +166,9 @@ export function AutomacoesPage() {
     Promise.allSettled([
       api.searchMercadoLivreCatalog({ page: 1, limit: 48 }),
       api.getShopeeTopOffers(1, 48),
+      api.getShopeeTopOffers(1, 48, "oferta relâmpago"),
     ])
-      .then(([ml, shopee]) => {
+      .then(([ml, shopee, shopeeFlash]) => {
         const products: CatalogProduct[] = [];
         let mercadoLivre = 0;
         let shopeeTotal = 0;
@@ -188,13 +193,41 @@ export function AutomacoesPage() {
               price: item.price,
               imageUrl: item.imageUrl,
               marketplace: "Shopee" as const,
+              offerType: "Oferta" as const,
             })),
           );
         }
+        let flashTotal = 0;
+        if (shopeeFlash.status === "fulfilled") {
+          flashTotal = shopeeFlash.value.total;
+          const existing = new Set(
+            products.map((product) => `${product.marketplace}-${product.id}`),
+          );
+          products.push(
+            ...shopeeFlash.value.items
+              .filter((item) => !existing.has(`Shopee-${item.itemId}`))
+              .map((item) => ({
+                id: String(item.itemId),
+                title: item.title,
+                price: item.price,
+                imageUrl: item.imageUrl,
+                marketplace: "Shopee" as const,
+                offerType: "Oferta Relâmpago" as const,
+              })),
+          );
+        }
         setCatalogProducts(products);
-        setCatalogTotals({ mercadoLivre, shopee: shopeeTotal });
+        setCatalogTotals({
+          mercadoLivre,
+          shopee: shopeeTotal + flashTotal,
+          shopeeFlash: flashTotal,
+        });
         setCatalogLoaded(true);
-        if (ml.status === "rejected" && shopee.status === "rejected")
+        if (
+          ml.status === "rejected" &&
+          shopee.status === "rejected" &&
+          shopeeFlash.status === "rejected"
+        )
           setCatalogError(
             "Não foi possível carregar os catálogos. Verifique as integrações e tente novamente.",
           );
@@ -221,8 +254,15 @@ export function AutomacoesPage() {
     () =>
       catalogProducts
         .filter((product) => draft.sources.includes(product.marketplace))
+        .filter(
+          (product) =>
+            product.marketplace !== "Shopee" ||
+            (draft.shopeeOfferTypes || ["Oferta", "Oferta Relâmpago"]).includes(
+              product.offerType || "Oferta",
+            ),
+        )
         .slice(0, 8),
-    [catalogProducts, draft.sources],
+    [catalogProducts, draft.sources, draft.shopeeOfferTypes],
   );
   const cycleMinutes = Math.max(
     1,
@@ -268,6 +308,20 @@ export function AutomacoesPage() {
         ? d.categories.filter((x) => x !== category)
         : [...d.categories, category],
     }));
+  }
+  function toggleShopeeOfferType(offerType: string) {
+    setDraft((current) => {
+      const selected = current.shopeeOfferTypes || [
+        "Oferta",
+        "Oferta Relâmpago",
+      ];
+      return {
+        ...current,
+        shopeeOfferTypes: selected.includes(offerType)
+          ? selected.filter((item) => item !== offerType)
+          : [...selected, offerType],
+      };
+    });
   }
   function next() {
     if (step === 1 && !draft.name.trim()) {
@@ -707,7 +761,7 @@ export function AutomacoesPage() {
                     onClick={() => setSourceTab("types")}
                   >
                     <Zap />
-                    Tipos de Oferta (0)
+                    Tipos de Oferta ({(draft.shopeeOfferTypes || []).length})
                   </button>
                   <button
                     className={sourceTab === "categories" ? "active" : ""}
@@ -724,6 +778,41 @@ export function AutomacoesPage() {
                     Palavras-Chave (0)
                   </button>
                 </div>
+                {sourceTab === "types" && (
+                  <div className="auto-offer-types">
+                    {[
+                      {
+                        name: "Oferta",
+                        detail: `${Math.max(0, catalogTotals.shopee - catalogTotals.shopeeFlash)} produtos encontrados`,
+                      },
+                      {
+                        name: "Oferta Relâmpago",
+                        detail: `${catalogTotals.shopeeFlash} produtos por tempo limitado`,
+                      },
+                    ].map((type) => {
+                      const checked = (
+                        draft.shopeeOfferTypes || ["Oferta", "Oferta Relâmpago"]
+                      ).includes(type.name);
+                      return (
+                        <label
+                          className={checked ? "selected" : ""}
+                          key={type.name}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleShopeeOfferType(type.name)}
+                          />
+                          <span>{checked && <Check />}</span>
+                          <div>
+                            <b>{type.name}</b>
+                            <small>{type.detail}</small>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
                 {sourceTab === "categories" && (
                   <>
                     <div className="auto-search">
@@ -796,7 +885,7 @@ export function AutomacoesPage() {
                     <article key={`${product.marketplace}-${product.id}`}>
                       <img src={product.imageUrl} alt="" />
                       <div>
-                        <span>{product.marketplace}</span>
+                        <span>{product.offerType || product.marketplace}</span>
                         <h4>{product.title}</h4>
                         <b>{money.format(product.price)}</b>
                       </div>
