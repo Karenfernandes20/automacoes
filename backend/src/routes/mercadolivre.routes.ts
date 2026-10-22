@@ -93,6 +93,16 @@ mercadoLivreRouter.get('/catalog/categories', async (_req, res) => {
   }
 });
 
+mercadoLivreRouter.get('/catalog/diagnostics', async (req, res) => {
+  try {
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    res.json({ success: true, data: await mercadoLivreService.getCatalogDiagnostics(category) });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro no diagnóstico do catálogo';
+    res.status(502).json({ success: false, error: message });
+  }
+});
+
 mercadoLivreRouter.get('/catalog', async (req, res) => {
   try {
     const numberParam = (value: unknown) => typeof value === 'string' && value !== '' ? Number(value) : undefined;

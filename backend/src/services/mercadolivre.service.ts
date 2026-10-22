@@ -413,6 +413,29 @@ export const mercadoLivreService = {
     };
   },
 
+  async getCatalogDiagnostics(category = 'MLB1055') {
+    const token = await this.getValidToken();
+    if (!token) throw new Error('Mercado Livre não conectado.');
+    const headers = { Authorization: `Bearer ${token.access_token}` };
+    const summarize = async (url: string) => {
+      const response = await fetch(url, { headers });
+      const body = await response.json().catch(() => ({}));
+      return {
+        status: response.status,
+        error: body.error || body.message || null,
+        contentCount: Array.isArray(body.content) ? body.content.length : null,
+        resultCount: Array.isArray(body.results) ? body.results.length : null,
+        firstContent: body.content?.[0] ? { id: body.content[0].id, type: body.content[0].type } : null,
+        keys: Object.keys(body).slice(0, 15)
+      };
+    };
+    return {
+      category,
+      highlights: await summarize(`https://api.mercadolibre.com/highlights/MLB/category/${category}`),
+      search: await summarize(`https://api.mercadolibre.com/sites/MLB/search?q=celular&limit=1`)
+    };
+  },
+
   async getTopOffers(category?: string) {
     const trends = await this.getTrends();
 
