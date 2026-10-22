@@ -29,7 +29,7 @@ export function MercadoLivreOffersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('');
-  const [onlyOffers, setOnlyOffers] = useState(true);
+  const [onlyOffers, setOnlyOffers] = useState(false);
   const [freeShipping, setFreeShipping] = useState(false);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');

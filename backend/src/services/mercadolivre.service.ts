@@ -326,17 +326,24 @@ export const mercadoLivreService = {
       }
     };
 
+    let rootIds: string[] = [];
     if (params.category) {
+      rootIds = [params.category];
       await findLeaves(params.category, 8);
     } else {
       const categories = await this.getCatalogCategories();
+      rootIds = categories.slice(0, 16).map(category => category.id);
       for (const category of categories.slice(0, 12)) {
         await findLeaves(category.id, 12);
         if (leafIds.length >= 12) break;
       }
     }
 
-    const rankings = await Promise.all(leafIds.map(async categoryId => {
+    // Os rankings do Mercado Livre são mais completos nas categorias raiz.
+    // Algumas categorias folha respondem 200 com uma lista vazia, por isso
+    // consultamos ambos os níveis e eliminamos itens repetidos depois.
+    const rankingCategoryIds = [...new Set([...rootIds, ...leafIds])];
+    const rankings = await Promise.all(rankingCategoryIds.map(async categoryId => {
       const response = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${categoryId}`, { headers });
       if (!response.ok) return [];
       const body = await response.json() as { content?: Array<{ id: string; type: 'ITEM'|'PRODUCT'|'USER_PRODUCT'; position: number }> };
@@ -350,18 +357,19 @@ export const mercadoLivreService = {
       if (!response.ok) return null;
       const body = await response.json();
       const winner = entry.type === 'PRODUCT' ? body.buy_box_winner : body;
-      if (!winner || !body.permalink) return null;
+      const permalink = winner?.permalink || body.permalink;
+      if (!winner || !permalink) return null;
       const price = Number(winner.price || 0);
       const oldPrice = Number(winner.original_price || winner.base_price || price);
       return {
         id: winner.item_id || body.id,
-        title: body.name || body.title,
+        title: winner.title || body.name || body.title,
         categoryId: winner.category_id || body.category_id,
         price,
         oldPrice,
         discount: oldPrice > price ? Math.round((1 - price / oldPrice) * 100) : 0,
-        imageUrl: String(body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
-        url: body.permalink,
+        imageUrl: String(winner.thumbnail || body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
+        url: permalink,
         freeShipping: Boolean(winner.shipping?.free_shipping),
         condition: winner.condition || 'new',
         availableQuantity: winner.available_quantity || 0,
