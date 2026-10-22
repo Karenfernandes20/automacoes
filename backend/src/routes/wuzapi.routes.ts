@@ -46,3 +46,14 @@ wuzapiRouter.get('/groups', async (_req, res) => {
     res.status(500).json({ success: false, error: message });
   }
 });
+
+wuzapiRouter.get('/groups/:groupId/messages', async (req, res) => {
+  try {
+    const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 100;
+    const messages = await wuzapiService.getGroupMessages(String(req.params.groupId), limit);
+    res.json({ success: true, data: { messages } });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao carregar mensagens';
+    res.status(502).json({ success: false, error: message });
+  }
+});

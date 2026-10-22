@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowDownToLine, ArrowUpRight, BadgeCheck, CircleDollarSign, Clock3, Copy, ExternalLink, Link2, MessageCircle, MoreHorizontal, Plug, Plus, RefreshCw, Search, ShieldCheck, ShoppingBag, TrendingUp, Users } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, ArrowUpRight, BadgeCheck, CircleDollarSign, Clock3, Copy, ExternalLink, Link2, MessageCircle, MoreHorizontal, Plug, Plus, RefreshCw, Search, ShieldCheck, ShoppingBag, TrendingUp, Users, X } from 'lucide-react';
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -273,6 +273,25 @@ export function GroupsPage(){
   const [groupsList, setGroupsList] = useState<Array<{id:string;name:string;members:number;capacity:number;status:string;messages:number;topic?:string}>>([]);
   const [loading, setLoading] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<{id:string;name:string} | null>(null);
+  const [groupMessages, setGroupMessages] = useState<Array<{id:string;sender:string;timestamp:string;type:string;text:string;mediaUrl?:string}>>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesError, setMessagesError] = useState('');
+
+  const openGroup = async (group:{id:string;name:string}) => {
+    setSelectedGroup(group);
+    setGroupMessages([]);
+    setMessagesError('');
+    setMessagesLoading(true);
+    try {
+      const result = await api.getWuzapiGroupMessages(group.id, 100);
+      setGroupMessages(result.messages || []);
+    } catch (err) {
+      setMessagesError(err instanceof Error ? err.message : 'Falha ao carregar mensagens.');
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
 
   const loadGroups = async () => {
     setLoading(true);
@@ -350,7 +369,7 @@ export function GroupsPage(){
             groupsList.map(g => {
               const pct = Math.min(100, Math.round((g.members / g.capacity) * 100));
               return (
-                <div className="group-row" key={g.id || g.name}>
+                <div className="group-row" key={g.id || g.name} onClick={()=>openGroup(g)} style={{cursor:'pointer'}} title="Abrir mensagens do grupo">
                   <span className="group-avatar"><MessageCircle/></span>
                   <div className="group-info">
                     <b>{g.name}</b>
@@ -359,13 +378,36 @@ export function GroupsPage(){
                   </div>
                   <div className="group-activity"><b>{g.messages}</b><small>posts hoje</small></div>
                   <span className={`group-state ${pct>95?'warning':''}`}>{g.status}</span>
-                  <button className="row-menu"><MoreHorizontal/></button>
+                  <button className="row-menu" onClick={e=>{e.stopPropagation();void openGroup(g);}} aria-label={`Abrir mensagens de ${g.name}`}><MessageCircle/></button>
                 </div>
               );
             })
           )}
         </div>
       </section>
+
+      {selectedGroup && (
+        <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setSelectedGroup(null)}>
+          <div className="modal" style={{width:'min(760px,94vw)',maxWidth:'760px',height:'min(760px,88vh)',display:'flex',flexDirection:'column',padding:0,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 18px',background:'#075e54',color:'#fff'}}>
+              <div><b style={{display:'block'}}>{selectedGroup.name}</b><small>Últimas mensagens sincronizadas</small></div>
+              <button onClick={()=>setSelectedGroup(null)} style={{border:0,background:'transparent',color:'#fff',cursor:'pointer'}}><X/></button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'18px',background:'#efeae2',display:'flex',flexDirection:'column-reverse',gap:'10px'}}>
+              {messagesLoading ? <div style={{margin:'auto',textAlign:'center'}}><RefreshCw className="animate-spin"/><p>Carregando mensagens...</p></div> :
+               messagesError ? <div style={{margin:'auto',maxWidth:'480px',padding:'16px',background:'#fff',borderRadius:'10px',color:'#b91c1c',textAlign:'center'}}>{messagesError}</div> :
+               groupMessages.length===0 ? <div style={{margin:'auto',padding:'16px',background:'#fff',borderRadius:'10px',textAlign:'center'}}>Ainda não há mensagens armazenadas para este grupo.</div> :
+               groupMessages.map(message=><div key={`${message.id}-${message.timestamp}`} style={{alignSelf:'flex-start',maxWidth:'78%',background:'#fff',padding:'9px 11px',borderRadius:'8px',boxShadow:'0 1px 2px rgba(0,0,0,.12)'}}>
+                 <b style={{display:'block',fontSize:'11px',color:'#128c7e'}}>{message.sender.replace(/@.+$/,'')}</b>
+                 <div style={{fontSize:'14px',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{message.text || `[${message.type}]`}</div>
+                 {message.mediaUrl&&<a href={message.mediaUrl} target="_blank" rel="noreferrer" style={{fontSize:'12px'}}>Abrir mídia</a>}
+                 <small style={{display:'block',textAlign:'right',color:'#777',fontSize:'10px',marginTop:'4px'}}>{message.timestamp ? new Date(message.timestamp).toLocaleString('pt-BR') : ''}</small>
+               </div>)}
+            </div>
+            <div style={{padding:'10px 16px',borderTop:'1px solid #ddd',background:'#fff',fontSize:'12px',color:'#6b7280'}}>Visualização somente leitura • até 100 mensagens recentes</div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

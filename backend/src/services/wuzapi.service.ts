@@ -10,6 +10,15 @@ export interface WuzApiGroup {
   topic?: string;
 }
 
+export interface WuzApiMessage {
+  id: string | number;
+  sender: string;
+  timestamp: string;
+  type: string;
+  text: string;
+  mediaUrl?: string;
+}
+
 export const wuzapiService = {
   getBaseUrl() {
     return env.WUZAPI_BASE_URL.replace(/\/+$/, '');
@@ -173,5 +182,29 @@ export const wuzapiService = {
       console.error('Erro ao listar grupos na WuzAPI:', err);
       return [];
     }
+  }
+  ,
+
+  async getGroupMessages(groupJid: string, limit = 100): Promise<WuzApiMessage[]> {
+    const baseUrl = this.getBaseUrl();
+    const token = this.getUserToken();
+    const safeLimit = Math.min(Math.max(limit, 1), 500);
+    const res = await fetch(`${baseUrl}/chat/history?chat_jid=${encodeURIComponent(groupJid)}&limit=${safeLimit}`, {
+      headers: { token, 'Content-Type': 'application/json' }
+    });
+    if (res.status === 501) {
+      throw new Error('O histórico foi habilitado agora. As mensagens aparecerão conforme forem recebidas ou sincronizadas pelo WhatsApp.');
+    }
+    if (!res.ok) throw new Error('Não foi possível carregar as mensagens deste grupo.');
+    const body = await res.json();
+    const rows = Array.isArray(body.data) ? body.data : [];
+    return rows.map((message: Record<string, unknown>) => ({
+      id: String(message.message_id || message.id || ''),
+      sender: String(message.sender_jid || ''),
+      timestamp: String(message.timestamp || ''),
+      type: String(message.message_type || 'text'),
+      text: String(message.text_content || ''),
+      mediaUrl: message.media_link ? String(message.media_link) : undefined
+    }));
   }
 };

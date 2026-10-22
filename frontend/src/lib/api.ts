@@ -25,6 +25,7 @@ export const api={
   connectWuzapi:()=>request<{success:boolean;qrCode?:string;instance?:string;error?:string}>('/integrations/wuzapi/connect',{method:'POST'}),
   disconnectWuzapi:()=>request<{success:boolean}>('/integrations/wuzapi/disconnect',{method:'POST'}),
   getWuzapiGroups:()=>request<{groups:Array<{id:string;name:string;members:number;capacity:number;status:string;messages:number;topic?:string}>}>('/integrations/wuzapi/groups'),
+  getWuzapiGroupMessages:(groupId:string,limit=100)=>request<{messages:Array<{id:string;sender:string;timestamp:string;type:string;text:string;mediaUrl?:string}>}>(`/integrations/wuzapi/groups/${encodeURIComponent(groupId)}/messages?limit=${limit}`),
   getAutomationStatus:()=>fetch(`${BASE}/automations/status`).then(r=>r.json()) as Promise<{configured:boolean;model:string;capabilities:string[]}>,
   generateCopy:(data:{productTitle:string;category?:string;currentPrice:number;previousPrice?:number;marketplace?:string;affiliateUrl?:string;tone?:string})=>fetch(`${BASE}/automations/generate-copy`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()) as Promise<{copy:string;error?:string}>,
   generateVideoScript:(data:{productTitle:string;category?:string;currentPrice:number;marketplace?:string;affiliateUrl?:string;durationSeconds?:number})=>fetch(`${BASE}/automations/generate-video-script`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()) as Promise<{script:string;error?:string}>,
