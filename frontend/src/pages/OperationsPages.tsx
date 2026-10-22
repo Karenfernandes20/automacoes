@@ -60,12 +60,41 @@ export function IntegrationsPage(){
     }
   }, []);
 
+  useEffect(() => {
+    const unlockConnection = () => {
+      setLoadingMl(false);
+      void loadStatus();
+    };
+    window.addEventListener('focus', unlockConnection);
+    window.addEventListener('pageshow', unlockConnection);
+    return () => {
+      window.removeEventListener('focus', unlockConnection);
+      window.removeEventListener('pageshow', unlockConnection);
+    };
+  }, []);
+
   const handleConnectML = async () => {
     setLoadingMl(true);
     setFeedback(null);
     try {
       const { authUrl } = await api.getMercadoLivreAuthUrl();
-      window.location.href = authUrl;
+      const popup = window.open(authUrl, 'mercadolivre-oauth', 'popup=yes,width=720,height=760');
+      if (!popup) {
+        setFeedback({type: 'error', message: 'O navegador bloqueou a janela de conexão. Permita pop-ups para este site e tente novamente.'});
+        setLoadingMl(false);
+        return;
+      }
+      const monitor = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(monitor);
+          setLoadingMl(false);
+          void loadStatus();
+        }
+      }, 500);
+      window.setTimeout(() => {
+        window.clearInterval(monitor);
+        setLoadingMl(false);
+      }, 2 * 60 * 1000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha ao iniciar autenticação';
       setFeedback({type: 'error', message: msg});
