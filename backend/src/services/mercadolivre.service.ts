@@ -49,6 +49,12 @@ async function saveToken(token: MLTokenData | null) {
 
 export const mercadoLivreService = {
   getAuthUrl(): string {
+    if (!env.MERCADOLIVRE_APP_ID || !env.MERCADOLIVRE_CLIENT_SECRET) {
+      throw new Error('A integração do Mercado Livre ainda não possui APP ID e Client Secret configurados.');
+    }
+    if (!env.MERCADOLIVRE_REDIRECT_URI.startsWith('https://')) {
+      throw new Error('Configure uma URL HTTPS permanente de retorno antes de conectar o Mercado Livre.');
+    }
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: env.MERCADOLIVRE_APP_ID,

@@ -1,4 +1,8 @@
-import 'dotenv/config'; import { z } from 'zod';
+import path from 'node:path'; import { config } from 'dotenv'; import { z } from 'zod';
+// npm workspaces inicia o backend com cwd=backend. Carregamos primeiro o .env
+// da raiz e depois um .env local, caso exista.
+config({ path: path.resolve(process.cwd(), '..', '.env') });
+config({ path: path.resolve(process.cwd(), '.env'), override: true });
 const schema=z.object({
   PORT:z.coerce.number().default(3333),
   NODE_ENV:z.enum(['development','test','production']).default('development'),
