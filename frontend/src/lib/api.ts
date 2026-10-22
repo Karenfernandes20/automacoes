@@ -1,6 +1,26 @@
 import type { Offer, OfferInput } from '@central/shared';
 const BASE=import.meta.env.VITE_API_URL||'http://localhost:3333/api';
-async function request<T>(path:string,init?:RequestInit):Promise<T>{const token=localStorage.getItem('central_token');const res=await fetch(`${BASE}${path}`,{...init,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`} :{}),...init?.headers}});if(!res.ok){const b=await res.json().catch(()=>({}));throw new Error(b.error||'Não foi possível concluir a operação.');}if(res.status===204)return undefined as T;const body=await res.json();return body.data;}
+async function request<T>(path:string,init?:RequestInit):Promise<T>{
+  const token=localStorage.getItem('central_token');
+  const res=await fetch(`${BASE}${path}`,{
+    ...init,
+    headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`} :{}),...init?.headers}
+  });
+
+  if(!res.ok){
+    const body=await res.json().catch(()=>({}));
+    if(res.status===401&&path!=='/auth/login'){
+      localStorage.removeItem('central_token');
+      const returnTo=`${window.location.pathname}${window.location.search}`;
+      window.location.assign(`/admin/login?session=expired&returnTo=${encodeURIComponent(returnTo)}`);
+    }
+    throw new Error(body.error||'Não foi possível concluir a operação.');
+  }
+
+  if(res.status===204)return undefined as T;
+  const body=await res.json();
+  return body.data;
+}
 export const api={
   listOffers:()=>request<Offer[]>('/offers'),
   login:(email:string,password:string)=>request<{token:string;user:{name:string;email:string;role:string}}>('/auth/login',{method:'POST',body:JSON.stringify({email,password})}),
