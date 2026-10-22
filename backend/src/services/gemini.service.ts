@@ -28,6 +28,29 @@ export class GeminiFlowService {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   }
 
+  private static deterministicGroupProfile(productTitle: string, category: string) {
+    const text = `${productTitle} ${category}`.toLocaleLowerCase('pt-BR');
+    if (/(automot|carro|veículo|veiculo|bateria|12v|mecânic|mecanic|oficina|autopeça|autopeca|motor)/i.test(text)) {
+      const terms = [
+        ['Mecânica Automotiva Brasil', 'mecânica automotiva brasil'],
+        ['Dicas de Manutenção Automotiva', 'manutenção automotiva dicas'],
+        ['Autopeças e Acessórios Automotivos', 'autopeças acessórios automotivos'],
+        ['Faça Você Mesmo — Carros e Garagem', 'faça você mesmo manutenção de carros'],
+        ['Baterias, Elétrica e Som Automotivo', 'elétrica bateria som automotivo'],
+      ];
+      return {
+        niche: 'Carros, Mecânica & Manutenção Automotiva',
+        keywords: ['mecânica automotiva', 'manutenção de carros', 'autopeças', 'bateria automotiva', 'elétrica automotiva'],
+        groups: terms.map(([name, searchQuery]) => ({
+          name, category: 'Automóveis e Mecânica', estimatedMembers: 'Ver no Facebook', searchQuery,
+          directUrl: `https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(searchQuery)}`,
+          description: 'Público interessado em carros, peças, ferramentas, reparos e manutenção automotiva.'
+        }))
+      };
+    }
+    return null;
+  }
+
   /**
    * Calls Google Gemini API directly via fetch to generate text, scripts or prompts
    */
@@ -188,6 +211,9 @@ Format the output strictly as JSON with keys: "imagePrompt" and "videoPrompt".`;
       description: string;
     }>;
   }> {
+    const deterministicProfile = this.deterministicGroupProfile(productTitle, category);
+    if (deterministicProfile) return deterministicProfile;
+
     const prompt = `Analise este produto e identifique as MELHORES COMUNIDADES ORGÂNICAS E GRUPOS DE INTERESSE no Facebook no Brasil onde as pessoas compram por indicação e necessidade real:
 Produto: "${productTitle}"
 Categoria informada: "${category}"
@@ -199,6 +225,7 @@ Sugira GRUPOS TEMÁTICOS E COMUNIDADES REAIS de pessoas apaixonadas pelo assunto
 - Se for produto de bebê/criança: Grupos de "Mães de Primeira Viagem", "Maternidade Real", "Dicas de Enxoval e Bebês", "Desmame e Introdução Alimentar".
 - Se for maquiagem/beleza: "Dicas de Skincare e Maquiagem", "Cabelos Cacheados / Cronograma Capilar".
 - Se for fitness: "Vida Saudável e Emagrecimento", "Treino em Casa e Dicas Fit".
+- Se for bateria, carregador 12V, ferramenta ou acessório de carro: "Mecânica Automotiva", "Manutenção de Carros", "Autopeças", "Elétrica Automotiva", "Faça Você Mesmo na Garagem". NUNCA classifique esses produtos como casa, cozinha ou culinária.
 
 Retorne SOMENTE um JSON válido com o formato:
 {
@@ -261,4 +288,3 @@ Retorne SOMENTE um JSON válido com o formato:
     }
   }
 }
-
