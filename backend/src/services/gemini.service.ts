@@ -29,26 +29,50 @@ export class GeminiFlowService {
   }
 
   private static deterministicGroupProfile(productTitle: string, category: string) {
-    const text = `${productTitle} ${category}`.toLocaleLowerCase('pt-BR');
-    if (/(automot|carro|veículo|veiculo|bateria|12v|mecânic|mecanic|oficina|autopeça|autopeca|motor)/i.test(text)) {
-      const terms = [
-        ['Mecânica Automotiva Brasil', 'mecânica automotiva brasil'],
-        ['Dicas de Manutenção Automotiva', 'manutenção automotiva dicas'],
-        ['Autopeças e Acessórios Automotivos', 'autopeças acessórios automotivos'],
-        ['Faça Você Mesmo — Carros e Garagem', 'faça você mesmo manutenção de carros'],
-        ['Baterias, Elétrica e Som Automotivo', 'elétrica bateria som automotivo'],
-      ];
-      return {
-        niche: 'Carros, Mecânica & Manutenção Automotiva',
-        keywords: ['mecânica automotiva', 'manutenção de carros', 'autopeças', 'bateria automotiva', 'elétrica automotiva'],
-        groups: terms.map(([name, searchQuery]) => ({
-          name, category: 'Automóveis e Mecânica', estimatedMembers: 'Ver no Facebook', searchQuery,
-          directUrl: `https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(searchQuery)}`,
-          description: 'Público interessado em carros, peças, ferramentas, reparos e manutenção automotiva.'
-        }))
-      };
-    }
-    return null;
+    const text = `${productTitle} ${category}`.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    type Profile = { pattern:RegExp; niche:string; category:string; description:string; terms:string[] };
+    const profiles:Profile[] = [
+      {pattern:/(brinqued|bonec|carrinho|pelucia|lego|bloco de montar|fidget|alivio estresse|infantil|kids)/,niche:'Brinquedos, Crianças & Desenvolvimento Infantil',category:'Brinquedos e Infância',description:'Pais, responsáveis e pessoas interessadas em brinquedos, presentes e desenvolvimento infantil.',terms:['Brinquedos Educativos e Criativos','Dicas de Brinquedos para Crianças','Mães e Pais — Brincadeiras Infantis','Presentes Criativos para Crianças','Atividades e Desenvolvimento Infantil']},
+      {pattern:/(automot|carro|veiculo|bateria|12v|mecanic|oficina|autopeca|motor|pneu)/,niche:'Carros, Mecânica & Manutenção Automotiva',category:'Automóveis e Mecânica',description:'Público interessado em carros, peças, ferramentas, reparos e manutenção automotiva.',terms:['Mecânica Automotiva Brasil','Dicas de Manutenção Automotiva','Autopeças e Acessórios Automotivos','Faça Você Mesmo — Carros e Garagem','Baterias e Elétrica Automotiva']},
+      {pattern:/(bebe|fralda|matern|amament|mamadeira|chupeta|gestante|enxoval)/,niche:'Maternidade, Bebês & Enxoval',category:'Bebês e Maternidade',description:'Famílias interessadas em maternidade, cuidados com bebês e produtos de enxoval.',terms:['Mães de Primeira Viagem Brasil','Maternidade Real e Dicas','Enxoval de Bebê sem Mistério','Cuidados com Bebês','Gestantes e Mamães do Brasil']},
+      {pattern:/(maquiagem|skincare|cosmetic|perfume|creme facial|batom|rimel|base facial|unha)/,niche:'Beleza, Maquiagem & Skincare',category:'Beleza e Cuidados',description:'Público interessado em maquiagem, cosméticos, autocuidado e rotina de beleza.',terms:['Dicas de Maquiagem Brasil','Skincare e Cuidados com a Pele','Amantes de Cosméticos e Perfumes','Beleza e Autocuidado Feminino','Unhas e Maquiagem — Dicas']},
+      {pattern:/(cabelo|capilar|shampoo|condicionador|secador|chapinha|babyliss|barbear|barba)/,niche:'Cabelos, Barba & Cuidados Pessoais',category:'Cuidados Pessoais',description:'Pessoas interessadas em cuidados capilares, barba, estética e beleza.',terms:['Cronograma Capilar Brasil','Cabelos Cacheados e Crespos','Dicas para Cabelos Saudáveis','Barba e Cuidados Masculinos','Produtos Profissionais para Cabelo']},
+      {pattern:/(celular|smartphone|iphone|android|capinha|carregador usb|fone|bluetooth|smartwatch)/,niche:'Celulares, Gadgets & Tecnologia',category:'Tecnologia',description:'Entusiastas de celulares, acessórios, gadgets e novidades tecnológicas.',terms:['Celulares e Smartphones Brasil','Acessórios para Celular','Tecnologia e Gadgets Brasil','Android — Dicas e Acessórios','iPhone Brasil — Dicas e Acessórios']},
+      {pattern:/(notebook|computador|pc gamer|teclado|mouse|monitor|ssd|placa de video|impressora|informatica)/,niche:'Informática, Computadores & PC Gamer',category:'Informática',description:'Público interessado em computadores, hardware, periféricos e informática.',terms:['Hardware Brasil','PC Gamer Brasil','Informática e Computadores','Notebooks — Dicas e Ofertas','Periféricos Gamer Brasil']},
+      {pattern:/(game|gamer|console|playstation|xbox|nintendo|controle joystick)/,niche:'Games, Consoles & Jogadores',category:'Games',description:'Jogadores interessados em consoles, jogos, controles e acessórios gamer.',terms:['Gamers Brasil','PlayStation Brasil','Xbox Brasil','Nintendo Brasil','Jogos e Consoles Brasil']},
+      {pattern:/(ferrament|furadeira|parafusadeira|serra|chave de|alicate|solda|marcenaria)/,niche:'Ferramentas, Oficina & Faça Você Mesmo',category:'Ferramentas',description:'Profissionais e hobbistas interessados em ferramentas, oficina, reparos e projetos.',terms:['Ferramentas e Máquinas Brasil','Faça Você Mesmo Brasil','Marcenaria e Ferramentas','Reformas e Reparos Residenciais','Profissionais da Construção e Manutenção']},
+      {pattern:/(panela|cozinha|airfryer|liquidificador|cafeteira|pote|talher|receita|forno|fogao)/,niche:'Cozinha, Receitas & Utensílios',category:'Casa e Cozinha',description:'Pessoas interessadas em culinária, receitas e utensílios que facilitam a cozinha.',terms:['Receitas e Dicas de Cozinha','Airfryer — Receitas e Dicas','Utensílios de Cozinha','Cozinha Prática e Organizada','Donas de Casa e Culinária']},
+      {pattern:/(casa|decoracao|moveis|sofa|tapete|cortina|organizad|limpeza|quarto|banheiro)/,niche:'Casa, Organização & Decoração',category:'Casa e Decoração',description:'Pessoas interessadas em organização, decoração, limpeza e melhorias para o lar.',terms:['Casa Organizada Brasil','Decoração e Inspiração para o Lar','Dicas de Limpeza e Organização','Apartamento e Casa Nova','Faça Você Mesmo — Decoração']},
+      {pattern:/(roupa|camisa|camiseta|vestido|calca|short|jaqueta|moda feminina|moda masculina|lingerie)/,niche:'Moda, Estilo & Vestuário',category:'Moda',description:'Público interessado em roupas, tendências, combinações e estilo.',terms:['Moda Feminina Brasil','Moda Masculina Brasil','Looks e Inspirações','Moda Plus Size Brasil','Dicas de Estilo e Vestuário']},
+      {pattern:/(tenis|sapato|sandalia|chinelo|bota|calcado)/,niche:'Calçados, Tênis & Estilo',category:'Moda e Calçados',description:'Pessoas interessadas em tênis, calçados, conforto e estilo.',terms:['Apaixonados por Tênis','Calçados Femininos Brasil','Tênis e Sneakers Brasil','Sapatos e Sandálias','Moda e Calçados Brasil']},
+      {pattern:/(academia|fitness|musculacao|treino|corrida|ciclismo|esporte|bola|suplemento|whey)/,niche:'Fitness, Esportes & Vida Ativa',category:'Esportes e Fitness',description:'Pessoas interessadas em exercícios, esportes, suplementação e vida saudável.',terms:['Academia e Musculação Brasil','Treino em Casa','Corrida de Rua Brasil','Vida Fitness e Saudável','Esportes e Atividade Física']},
+      {pattern:/(pet|cachorro|gato|cao|racao|aquario|passaro|animal)/,niche:'Pets, Cães & Gatos',category:'Animais de Estimação',description:'Tutores interessados em cuidados, acessórios, alimentação e bem-estar animal.',terms:['Apaixonados por Cachorros','Amantes de Gatos Brasil','Mundo Pet Brasil','Cuidados com Cães e Gatos','Dicas para Tutores de Pets']},
+      {pattern:/(saude|pressao|ortoped|massageador|vitamina|medic|terapeut|postura)/,niche:'Saúde, Bem-estar & Qualidade de Vida',category:'Saúde e Bem-estar',description:'Pessoas interessadas em bem-estar, cuidados pessoais e qualidade de vida.',terms:['Saúde e Bem-estar Brasil','Qualidade de Vida e Autocuidado','Dicas de Saúde e Bem-estar','Produtos Ortopédicos e Postura','Vida Saudável Brasil']},
+      {pattern:/(joia|semijoia|colar|pulseira|brinco|anel|relogio)/,niche:'Joias, Acessórios & Relógios',category:'Acessórios',description:'Público interessado em joias, semijoias, relógios e acessórios de estilo.',terms:['Semijoias e Acessórios Brasil','Apaixonadas por Joias','Relógios e Acessórios','Bijuterias e Semijoias','Moda e Acessórios Femininos']},
+      {pattern:/(livro|papelaria|caneta|caderno|material escolar|escritorio)/,niche:'Livros, Papelaria & Estudos',category:'Livros e Papelaria',description:'Leitores, estudantes e pessoas interessadas em papelaria e organização de estudos.',terms:['Leitores do Brasil','Papelaria Criativa Brasil','Material Escolar e Estudos','Amantes de Livros','Organização de Estudos']},
+      {pattern:/(jardim|jardinagem|planta|horta|vaso|grama)/,niche:'Jardinagem, Plantas & Horta',category:'Jardim',description:'Pessoas interessadas em plantas, jardinagem, hortas e áreas externas.',terms:['Jardinagem Brasil','Amantes de Plantas','Horta em Casa','Suculentas e Plantas Brasil','Jardins e Paisagismo']},
+      {pattern:/(agro|fazenda|rural|gado|trator|agricultura|pecuaria)/,niche:'Agro, Campo & Vida Rural',category:'Agro',description:'Produtores e pessoas interessadas em agricultura, pecuária e vida no campo.',terms:['Agronegócio Brasil','Produtores Rurais Brasil','Agricultura e Pecuária','Máquinas e Equipamentos Agrícolas','Vida no Campo Brasil']},
+      {pattern:/(violao|guitarra|teclado musical|instrumento|microfone|audio profissional)/,niche:'Música, Instrumentos & Áudio',category:'Instrumentos Musicais',description:'Músicos e pessoas interessadas em instrumentos, equipamentos e produção musical.',terms:['Músicos do Brasil','Violão e Guitarra Brasil','Instrumentos Musicais','Home Studio Brasil','Áudio Profissional e Música']},
+      {pattern:/(tv|televis|projetor|caixa de som|eletronico|camera|drone|home theater)/,niche:'Eletrônicos, Áudio & Vídeo',category:'Eletrônicos',description:'Entusiastas de eletrônicos, áudio, vídeo e tecnologia para entretenimento.',terms:['Eletrônicos Brasil','Áudio e Vídeo Brasil','TVs e Home Theater','Tecnologia para Casa','Câmeras e Eletrônicos']},
+      {pattern:/(geladeira|lavadora|maquina de lavar|micro-ondas|eletrodomest|aspirador|ventilador|ar condicionado)/,niche:'Eletrodomésticos & Casa Prática',category:'Eletrodomésticos',description:'Pessoas interessadas em eletrodomésticos e soluções práticas para o lar.',terms:['Eletrodomésticos Brasil','Casa Prática e Funcional','Dicas de Eletrodomésticos','Organização e Facilidades para o Lar','Eletros para Casa']},
+      {pattern:/(alimento|bebida|cafe |chocolate|doce|snack|cerveja|vinho|gourmet)/,niche:'Alimentos, Bebidas & Gastronomia',category:'Alimentos e Bebidas',description:'Pessoas interessadas em gastronomia, alimentos, bebidas e experiências culinárias.',terms:['Gastronomia Brasil','Amantes de Café','Alimentos e Bebidas Brasil','Dicas e Produtos Gourmet','Culinária e Sabores']},
+      {pattern:/(festa|aniversario|casamento|decoracao de festa|balao|lembrancinha)/,niche:'Festas, Eventos & Decoração',category:'Festas',description:'Pessoas interessadas em festas, eventos, decoração e lembranças.',terms:['Festas e Decoração Brasil','Dicas para Aniversários','Faça Você Mesmo — Festas','Casamentos e Eventos','Lembrancinhas e Personalizados']},
+      {pattern:/(viagem|mala|mochila|camping|barraca|turismo|trilha)/,niche:'Viagens, Camping & Aventura',category:'Viagem e Lazer',description:'Viajantes e pessoas interessadas em turismo, camping, trilhas e aventura.',terms:['Viajantes do Brasil','Camping Brasil','Trilhas e Aventuras','Dicas de Viagem Brasil','Mochileiros e Turismo']},
+      {pattern:/(arte|artesanato|pintura|costura|croche|tricot|armarinho|scrapbook)/,niche:'Artesanato, Arte & Trabalhos Manuais',category:'Arte e Artesanato',description:'Artesãos e pessoas interessadas em trabalhos manuais, arte e materiais criativos.',terms:['Artesanato Brasil','Crochê e Trabalhos Manuais','Costura Criativa Brasil','Arte e Pintura','Materiais para Artesanato']},
+      {pattern:/(industria|industrial|comercio|balanca comercial|maquina profissional|equipamento comercial)/,niche:'Indústria, Comércio & Equipamentos Profissionais',category:'Equipamentos Profissionais',description:'Empreendedores e profissionais interessados em máquinas e equipamentos para negócios.',terms:['Empreendedores do Brasil','Máquinas e Equipamentos Industriais','Comércio e Varejo Brasil','Equipamentos Profissionais','Pequenos Negócios Brasil']},
+      {pattern:/(antiguidade|colecion|moeda antiga|selo|miniatura)/,niche:'Antiguidades, Coleções & Hobby',category:'Colecionismo',description:'Colecionadores e pessoas interessadas em antiguidades, peças raras e hobbies.',terms:['Colecionadores do Brasil','Antiguidades Brasil','Compra e Venda de Coleções','Moedas e Cédulas Antigas','Hobbies e Colecionismo']},
+    ];
+    const profile = profiles.find(item=>item.pattern.test(text));
+    if (!profile) return null;
+    return {
+      niche: profile.niche,
+      keywords: profile.terms.map(term=>term.toLocaleLowerCase('pt-BR')),
+      groups: profile.terms.map(name => ({
+        name, category:profile.category, estimatedMembers:'Ver no Facebook', searchQuery:name,
+        directUrl:`https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(name)}`,
+        description:profile.description
+      }))
+    };
   }
 
   /**
@@ -260,29 +284,24 @@ Retorne SOMENTE um JSON válido com o formato:
       });
 
       return {
-        niche: parsed.niche || 'Donas de Casa & Dicas do Lar',
-        keywords: parsed.keywords || ['donas de casa', 'receitas', 'dicas para o lar'],
+        niche: parsed.niche || category || 'Interesses relacionados ao produto',
+        keywords: parsed.keywords || [category, productTitle].filter(Boolean),
         groups
       };
     } catch (e) {
       console.warn('Gemini group generation fallback:', e);
-      const terms = [
-        `Donas de Casa e Receitas`,
-        `Dicas Para o Lar e Cozinha`,
-        `Amigas Donas de Casa`,
-        `Receitas Práticas da Vovó`,
-        `Cozinha Prática e Organizada`
-      ];
+      const topic = category && category !== 'Geral' ? category : productTitle.split(/\s+/).slice(0,4).join(' ');
+      const terms = [`${topic} Brasil`, `Dicas de ${topic}`, `Comunidade ${topic}`, `Apaixonados por ${topic}`, `${topic} — Dúvidas e Recomendações`];
       return {
-        niche: 'Donas de Casa & Culinária',
-        keywords: ['donas de casa', 'receitas', 'cozinha prática'],
+        niche: topic,
+        keywords: [topic, productTitle],
         groups: terms.map(t => ({
-          name: `${t} Brasil`,
-          category: 'Culinária e Lar',
-          estimatedMembers: '150 mil membros',
+          name: t,
+          category: topic,
+          estimatedMembers: 'Ver no Facebook',
           searchQuery: t,
           directUrl: `https://www.facebook.com/groups/search/groups/?q=${encodeURIComponent(t)}`,
-          description: 'Público engajado que adora dicas, receitas e produtos funcionais para o lar.'
+          description: `Público interessado em ${topic.toLocaleLowerCase('pt-BR')} e produtos relacionados.`
         }))
       };
     }
