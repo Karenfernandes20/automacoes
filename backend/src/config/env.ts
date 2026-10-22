@@ -19,6 +19,8 @@ const schema=z.object({
   WUZAPI_USER_TOKEN:z.string().default(''),
   GEMINI_API_KEY:z.string().default(''),
   GOOGLE_API_KEY:z.string().default('')
+  ,SUPABASE_URL:z.string().default('')
+  ,SUPABASE_SERVICE_ROLE_KEY:z.string().default('')
   ,FACEBOOK_APP_ID:z.string().default('')
   ,FACEBOOK_APP_SECRET:z.string().default('')
   ,FACEBOOK_REDIRECT_URI:z.string().default('http://localhost:3333/api/integrations/facebook/callback')

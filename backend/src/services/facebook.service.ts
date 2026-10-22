@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { env } from '../config/env.js';
+import { integrationStore } from './integration-store.service.js';
 
 interface FacebookPage {
   id: string;
@@ -23,6 +24,10 @@ let memory: FacebookConnection | null | undefined;
 
 async function load(): Promise<FacebookConnection | null> {
   if (memory !== undefined) return memory;
+  if (integrationStore.enabled) {
+    memory = await integrationStore.get<FacebookConnection>('facebook-connection');
+    return memory;
+  }
   try { memory = JSON.parse(await fs.readFile(storagePath, 'utf8')); }
   catch { memory = null; }
   return memory ?? null;
@@ -30,6 +35,11 @@ async function load(): Promise<FacebookConnection | null> {
 
 async function save(data: FacebookConnection | null) {
   memory = data;
+  if (integrationStore.enabled) {
+    if (data) await integrationStore.set('facebook-connection', data);
+    else await integrationStore.delete('facebook-connection');
+    return;
+  }
   if (!data) {
     try { await fs.unlink(storagePath); } catch { /* arquivo inexistente */ }
     return;

@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { env } from '../config/env.js';
+import { integrationStore } from './integration-store.service.js';
 
 export interface MLTokenData {
   access_token: string;
@@ -25,6 +26,10 @@ let categoriesCache: { expiresAt: number; data: Array<{ id: string; name: string
 
 async function loadToken(): Promise<MLTokenData | null> {
   if (tokenMemory) return tokenMemory;
+  if (integrationStore.enabled) {
+    tokenMemory = await integrationStore.get<MLTokenData>('mercadolivre-token');
+    return tokenMemory;
+  }
   try {
     const raw = await fs.readFile(storagePath, 'utf8');
     tokenMemory = JSON.parse(raw);
@@ -36,6 +41,11 @@ async function loadToken(): Promise<MLTokenData | null> {
 
 async function saveToken(token: MLTokenData | null) {
   tokenMemory = token;
+  if (integrationStore.enabled) {
+    if (token) await integrationStore.set('mercadolivre-token', token);
+    else await integrationStore.delete('mercadolivre-token');
+    return;
+  }
   if (!token) {
     try {
       await fs.unlink(storagePath);
