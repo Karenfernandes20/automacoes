@@ -441,10 +441,34 @@ export const mercadoLivreService = {
         keys: Object.keys(body).slice(0, 15)
       };
     };
+    const highlightsResponse = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${category}`, { headers });
+    const highlightsBody = await highlightsResponse.json().catch(() => ({}));
+    const first = highlightsBody.content?.[0];
+    let product: Record<string, unknown> | null = null;
+    let item: Record<string, unknown> | null = null;
+    if (first?.id) {
+      const productResponse = await fetch(`https://api.mercadolibre.com/products/${first.id}`, { headers });
+      const productBody = await productResponse.json().catch(() => ({}));
+      const winner = productBody.buy_box_winner;
+      product = {
+        status: productResponse.status,
+        keys: Object.keys(productBody).slice(0, 25),
+        winnerKeys: winner ? Object.keys(winner).slice(0, 25) : [],
+        winnerItemId: winner?.item_id || winner?.id || null
+      };
+      const itemId = winner?.item_id || winner?.id;
+      if (itemId) {
+        const itemResponse = await fetch(`https://api.mercadolibre.com/items/${itemId}`, { headers });
+        const itemBody = await itemResponse.json().catch(() => ({}));
+        item = { status: itemResponse.status, keys: Object.keys(itemBody).slice(0, 25), error: itemBody.error || itemBody.message || null };
+      }
+    }
     return {
       category,
       highlights: await summarize(`https://api.mercadolibre.com/highlights/MLB/category/${category}`),
-      search: await summarize(`https://api.mercadolibre.com/sites/MLB/search?q=celular&limit=1`)
+      search: await summarize(`https://api.mercadolibre.com/sites/MLB/search?q=celular&limit=1`),
+      product,
+      item
     };
   },
 
