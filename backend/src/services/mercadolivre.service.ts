@@ -359,7 +359,7 @@ export const mercadoLivreService = {
       const body = await response.json() as { content?: Array<{ id: string; type: 'ITEM'|'PRODUCT'|'USER_PRODUCT'; position: number }> };
       return body.content || [];
     }));
-    const ranked = rankings.flat().filter((entry, index, all) => all.findIndex(other => other.id === entry.id) === index).slice(0, 48);
+    const ranked = rankings.flat().filter((entry, index, all) => all.findIndex(other => other.id === entry.id) === index).slice(0, 32);
 
     const loadDetail = async (entry: typeof ranked[number]) => {
       const endpoint = entry.type === 'PRODUCT' ? `products/${entry.id}` : `items/${entry.id}`;
@@ -371,7 +371,17 @@ export const mercadoLivreService = {
       // O endpoint de produto de catálogo não fornece sempre o permalink.
       // Resolvemos o anúncio vencedor (MLB...) e buscamos seus dados públicos.
       if (entry.type === 'PRODUCT') {
-        const winnerId = catalogBody.buy_box_winner?.item_id;
+        let winnerId = catalogBody.buy_box_winner?.item_id;
+        if (!winnerId) {
+          const listingsResponse = await fetch(`https://api.mercadolibre.com/products/${entry.id}/items`, { headers });
+          if (!listingsResponse.ok) return null;
+          const listingsBody = await listingsResponse.json();
+          const listings = Array.isArray(listingsBody.results) ? listingsBody.results : [];
+          const preferred = listings.find((listing: { item_id?: string; original_price?: number; price?: number }) =>
+            listing.item_id && Number(listing.original_price || 0) > Number(listing.price || 0)
+          ) || listings.find((listing: { item_id?: string }) => listing.item_id);
+          winnerId = preferred?.item_id;
+        }
         if (!winnerId) return null;
         const itemResponse = await fetch(`https://api.mercadolibre.com/items/${winnerId}`, { headers });
         if (!itemResponse.ok) return null;
