@@ -218,6 +218,7 @@ function OfferModal({offer,onClose,onSaved}:{offer:Offer|null;onClose:()=>void;o
     marketplace:offer?.marketplace||'Mercado Livre',
     category:offer?.category||'Eletrônicos',
     imageUrl:offer?.imageUrl||'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80',
+    imageUrls:offer?.imageUrls || [offer?.imageUrl].filter(Boolean) as string[],
     currentPrice:String(offer?.currentPrice||''),
     previousPrice:String(offer?.previousPrice||''),
     coupon:offer?.coupon||'',
@@ -244,6 +245,7 @@ function OfferModal({offer,onClose,onSaved}:{offer:Offer|null;onClose:()=>void;o
         currentPrice: String(data.currentPrice),
         previousPrice: String(data.previousPrice || ''),
         imageUrl: data.imageUrl,
+        imageUrls: (data as any).imageUrls || [data.imageUrl],
         originalUrl: data.originalUrl,
         affiliateUrl: data.affiliateUrl
       }));
@@ -264,6 +266,7 @@ function OfferModal({offer,onClose,onSaved}:{offer:Offer|null;onClose:()=>void;o
       marketplace:form.marketplace as Offer['marketplace'],
       category:form.category,
       imageUrl:form.imageUrl,
+      imageUrls:form.imageUrls.length > 0 ? form.imageUrls : [form.imageUrl],
       currentPrice:Number(form.currentPrice),
       previousPrice:form.previousPrice?Number(form.previousPrice):null,
       coupon:form.coupon||null,
@@ -330,7 +333,39 @@ function OfferModal({offer,onClose,onSaved}:{offer:Offer|null;onClose:()=>void;o
           <label>Preço anterior<input min="0.01" step="0.01" type="number" value={form.previousPrice} onChange={e=>set('previousPrice',e.target.value)}/></label>
           <label>Cupom<input value={form.coupon} onChange={e=>set('coupon',e.target.value)} placeholder="Opcional"/></label>
           <label>Disponibilidade<select value={form.availability} onChange={e=>set('availability',e.target.value)}><option value="AVAILABLE">Disponível</option><option value="LOW_STOCK">Estoque baixo</option><option value="UNAVAILABLE">Indisponível</option></select></label>
-          <label className="wide">URL da imagem<input required type="url" value={form.imageUrl} onChange={e=>set('imageUrl',e.target.value)}/></label>
+          <div className="wide">
+            <label style={{fontSize:'9px',fontWeight:700,display:'block',marginBottom:'4px'}}>
+              URL da imagem principal
+              <input required type="url" value={form.imageUrl} onChange={e=>set('imageUrl',e.target.value)}/>
+            </label>
+            {form.imageUrls && form.imageUrls.length > 1 && (
+              <div style={{marginTop:'6px',padding:'8px',background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:'6px'}}>
+                <small style={{fontSize:'10px',color:'#4b5563',display:'block',marginBottom:'6px',fontWeight:600}}>
+                  Galeria de fotos ({form.imageUrls.length} fotos encontradas - clique em uma para torná-la a principal):
+                </small>
+                <div style={{display:'flex',gap:'6px',overflowX:'auto',paddingBottom:'4px'}}>
+                  {form.imageUrls.map((img, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => set('imageUrl', img)}
+                      style={{
+                        border: form.imageUrl === img ? '2px solid #7c3aed' : '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        padding: '2px',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        flexShrink: 0
+                      }}
+                      title="Definir como foto principal"
+                    >
+                      <img src={img} alt="" style={{width:'40px',height:'40px',objectFit:'contain',borderRadius:'3px'}}/>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <label className="wide">Link original<input required type="url" value={form.originalUrl} onChange={e=>set('originalUrl',e.target.value)}/></label>
           <label className="wide">Link de afiliado
             <input required type="url" value={form.affiliateUrl} onChange={e=>set('affiliateUrl',e.target.value)} placeholder="Cole o link gerado na Central de Afiliados do Mercado Livre"/>

@@ -22,6 +22,7 @@ interface CatalogItem {
   marketplace?: 'Mercado Livre' | 'Shopee';
   commissionRate?: number;
   commissionValue?: number;
+  imageUrls?: string[];
 }
 
 const PAGE_SIZE = 48;
@@ -183,6 +184,7 @@ export function TopProductsPage() {
         marketplace: mkt,
         category: selectedCategory,
         imageUrl: item.imageUrl,
+        imageUrls: item.imageUrls,
         currentPrice: item.price,
         previousPrice: item.oldPrice > item.price ? item.oldPrice : null,
         coupon: null,

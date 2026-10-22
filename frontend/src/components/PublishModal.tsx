@@ -45,6 +45,12 @@ export function PublishModal({ offer, onClose, onPublished }: PublishModalProps)
   // Status update
   const [markingPublished, setMarkingPublished] = useState(false);
 
+  // Photos state
+  const allPhotos = (offer.imageUrls && offer.imageUrls.length > 0)
+    ? offer.imageUrls
+    : [offer.imageUrl].filter(Boolean);
+  const [selectedImage, setSelectedImage] = useState<string>(allPhotos[0] || offer.imageUrl);
+
   const affiliateLink = offer.affiliateUrl || offer.originalUrl;
 
   // Load Copy
@@ -349,27 +355,64 @@ export function PublishModal({ offer, onClose, onPublished }: PublishModalProps)
                 </div>
               </div>
 
-              {/* Preview & Image */}
+              {/* Preview & Image Gallery */}
               <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '14px' }}>
-                <b style={{ fontSize: '12px', display: 'block', marginBottom: '10px', color: '#374151' }}>
-                  Imagem para Download ou Envio:
-                </b>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <b style={{ fontSize: '12px', color: '#374151' }}>
+                    Fotos do Produto ({allPhotos.length}):
+                  </b>
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                    Clique para trocar
+                  </span>
+                </div>
+
                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                   <img
-                    src={offer.imageUrl}
+                    src={selectedImage}
                     alt=""
                     style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '6px' }}
                   />
+
+                  {/* Carrossel de Miniaturas */}
+                  {allPhotos.length > 1 && (
+                    <div style={{
+                      display: 'flex',
+                      gap: '6px',
+                      overflowX: 'auto',
+                      padding: '8px 2px 2px',
+                      marginTop: '8px',
+                      borderTop: '1px solid #f3f4f6'
+                    }}>
+                      {allPhotos.map((img, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setSelectedImage(img)}
+                          style={{
+                            border: selectedImage === img ? '2px solid #7c3aed' : '1px solid #e5e7eb',
+                            borderRadius: '5px',
+                            padding: '2px',
+                            background: '#fff',
+                            cursor: 'pointer',
+                            flexShrink: 0
+                          }}
+                        >
+                          <img src={img} alt="" style={{ width: '38px', height: '38px', objectFit: 'contain', borderRadius: '3px' }} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div style={{ marginTop: '10px', display: 'flex', gap: '6px', justifyContent: 'center' }}>
                     <a
-                      href={offer.imageUrl}
+                      href={selectedImage}
                       target="_blank"
                       rel="noreferrer"
                       download="produto-oferta.jpg"
                       className="outline-btn"
                       style={{ fontSize: '11px', padding: '5px 10px' }}
                     >
-                      <ExternalLink size={12} /> Abrir Foto em Alta
+                      <ExternalLink size={12} /> Abrir Foto Atual em Alta
                     </a>
                   </div>
                 </div>

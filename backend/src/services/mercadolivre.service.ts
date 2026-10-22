@@ -409,6 +409,9 @@ export const mercadoLivreService = {
       const permalink = body.permalink || `https://produto.mercadolivre.com.br/${entry.id}`;
       const price = Number(body.price || 0);
       const oldPrice = Number(body.original_price || body.base_price || price);
+      const allPics: string[] = Array.isArray(body.pictures)
+        ? body.pictures.map((p: any) => String(p?.secure_url || p?.url || '')).filter(Boolean)
+        : [];
       return {
         id: body.id || entry.id,
         title: body.title || 'Produto Mercado Livre',
@@ -417,6 +420,7 @@ export const mercadoLivreService = {
         oldPrice,
         discount: oldPrice > price ? Math.round((1 - price / oldPrice) * 100) : 0,
         imageUrl: String(body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
+        imageUrls: allPics.length > 0 ? allPics : undefined,
         url: permalink,
         freeShipping: Boolean(body.shipping?.free_shipping),
         condition: body.condition || 'new',
@@ -648,6 +652,7 @@ export const mercadoLivreService = {
       currentPrice: data.price,
       previousPrice: data.original_price || data.price,
       imageUrl: data.pictures?.[0]?.secure_url || data.thumbnail,
+      imageUrls: Array.isArray(data.pictures) ? data.pictures.map((p: any) => String(p?.secure_url || p?.url || '')).filter(Boolean) : undefined,
       originalUrl: data.permalink,
       // A API comum do aplicativo não cria links do Programa de Afiliados.
       // Esse campo deve ser preenchido com o link gerado no Portal de Afiliados.
