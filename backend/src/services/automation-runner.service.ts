@@ -87,10 +87,12 @@ export const automationRunner = {
     try {
       const products=(await loadProducts(config)).filter(product=>!recentIds.has(product.id)).slice(0,Math.max(1,config.productsPerRun));
       if(!products.length)throw new Error('Nenhum produto novo disponível para envio.');
+      let firstMessage = true;
       for(const product of products) for(const groupId of config.groupIds) {
+        if (!firstMessage) await new Promise(resolve=>setTimeout(resolve,60000));
         try { await wuzapiService.sendText(groupId,renderMessage(config.message,product)); sent++; }
         catch(error){ failed++; runError=error instanceof Error?error.message:'Falha no envio'; }
-        await new Promise(resolve=>setTimeout(resolve,1500));
+        firstMessage = false;
       }
       productIds.push(...products.map(product=>product.id));
     } catch(error) { runError=error instanceof Error?error.message:'Falha na automação'; failed++; }

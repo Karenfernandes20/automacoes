@@ -17,7 +17,7 @@ router.patch('/configs/:id/status', async (req, res) => {
   catch(error){ res.status(500).json({success:false,error:(error as Error).message}); }
 });
 router.post('/configs/:id/run', async (req, res) => {
-  try { const config=(await automationRunner.list()).find(item=>item.id===req.params.id); if(!config)return res.status(404).json({success:false,error:'Automação não encontrada.'}); res.json({success:true,data:await automationRunner.execute(config,true)}); }
+  try { const config=(await automationRunner.list()).find(item=>item.id===req.params.id); if(!config)return res.status(404).json({success:false,error:'Automação não encontrada.'}); res.json({success:true,data:await automationRunner.execute({...config,productsPerRun:1},true)}); }
   catch(error){ res.status(500).json({success:false,error:(error as Error).message}); }
 });
 router.delete('/configs/:id', async (req, res) => {

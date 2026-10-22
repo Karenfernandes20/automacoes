@@ -282,7 +282,7 @@ export function AutomacoesPage() {
   const cycleMinutes = Math.max(
     1,
     Math.ceil(
-      (draft.productsPerRun * Math.max(1, draft.groupIds.length) * 20) / 60,
+      draft.productsPerRun * Math.max(1, draft.groupIds.length),
     ),
   );
 
