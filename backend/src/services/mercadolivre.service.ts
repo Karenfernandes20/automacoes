@@ -469,11 +469,25 @@ export const mercadoLivreService = {
       };
       const productItemsResponse = await fetch(`https://api.mercadolibre.com/products/${first.id}/items`, { headers });
       const productItemsBody = await productItemsResponse.json().catch(() => ({}));
+      const listings = Array.isArray(productItemsBody.results) ? productItemsBody.results : [];
+      const firstItemId = listings[0]?.item_id || null;
+      let itemDetail: Record<string, unknown> | null = null;
+      if (firstItemId) {
+        const itemRes = await fetch(`https://api.mercadolibre.com/items/${firstItemId}`, { headers });
+        const itemJson = await itemRes.json().catch(() => ({}));
+        itemDetail = {
+          status: itemRes.status,
+          id: itemJson.id,
+          permalink: itemJson.permalink || null,
+          error: itemJson.error || itemJson.message || null
+        };
+      }
       productItems = {
         status: productItemsResponse.status,
         keys: Object.keys(productItemsBody).slice(0, 25),
-        resultCount: Array.isArray(productItemsBody.results) ? productItemsBody.results.length : Array.isArray(productItemsBody) ? productItemsBody.length : null,
-        firstKeys: Object.keys(productItemsBody.results?.[0] || productItemsBody[0] || {}).slice(0, 25),
+        resultCount: listings.length,
+        firstItemId,
+        firstItemDetail: itemDetail,
         error: productItemsBody.error || productItemsBody.message || null
       };
       const itemId = winner?.item_id || winner?.id;
