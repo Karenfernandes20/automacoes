@@ -77,6 +77,12 @@ export const facebookService = {
     const pagesBody = await pagesRes.json();
     if (!pagesRes.ok) throw new Error(pagesBody.error?.message || 'Falha ao carregar suas Páginas do Facebook.');
     const pages = (pagesBody.data || []) as FacebookPage[];
+    if (pages.length === 0) {
+      throw new Error(
+        'O Facebook autorizou sua conta, mas não liberou nenhuma Página. ' +
+        'Confirme que seu perfil possui controle total da Página e, ao conectar novamente, selecione a Página e autorize todas as permissões.'
+      );
+    }
     const connection: FacebookConnection = {
       userAccessToken: tokenBody.access_token,
       pages,
