@@ -1,619 +1,99 @@
-import { useState, useEffect } from 'react';
-import { Bot, Sparkles, Copy, Check, Video, Image as ImageIcon, Send, RefreshCw, MessageSquare, Flame, Zap, Play } from 'lucide-react';
-import { useOffers } from '../hooks/useOffers';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle, ArrowLeft, ArrowRight, Box, CalendarDays, Check, ChevronDown,
+  Clock3, History, Layers3, MessageCircle, PackageSearch, PlayCircle, Plus,
+  Save, Search, Settings2, ShoppingBag, Sparkles, Trash2, Users, Video, Zap
+} from 'lucide-react';
 import { api } from '../lib/api';
+import { useOffers } from '../hooks/useOffers';
 
-export function AutomacoesPage() {
-  const { offers } = useOffers();
-  const [selectedOfferId, setSelectedOfferId] = useState<string>('');
-  const [status, setStatus] = useState<{ configured: boolean; model: string; capabilities: string[] } | null>(null);
-  const [activeTab, setActiveTab] = useState<'copy' | 'video' | 'visual'>('copy');
-  
-  // Custom prompt / inputs
-  const [tone, setTone] = useState<'urgencia' | 'descontraido' | 'direto' | 'storytelling'>('urgencia');
-  const [customProduct, setCustomProduct] = useState({
-    title: '',
-    category: 'Eletrônicos',
-    currentPrice: '',
-    previousPrice: '',
-    marketplace: 'Mercado Livre',
-    affiliateUrl: ''
-  });
+type View = 'list' | 'wizard' | 'history';
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Group = { id:string; name:string; members:number; status:string };
+type Automation = {
+  id:string; name:string; description:string; active:boolean; createdAt:string;
+  days:string[]; interval:number; startTime:string; endTime:string; groupIds:string[];
+  message:string; productsPerRun:number; order:string; sources:string[];
+  categories:string[]; negativeWords:string; noRepeatHours:number; shopeeVideos:boolean;
+};
 
-  // Generated outputs
-  const [generatedCopy, setGeneratedCopy] = useState<string>('');
-  const [generatedScript, setGeneratedScript] = useState<string>('');
-  const [visualPrompts, setVisualPrompts] = useState<{ imagePrompt: string; videoPrompt: string } | null>(null);
-  
-  const [loading, setLoading] = useState(false);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+const week = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+const steps = [
+  {n:1,label:'Identidade',icon:Box}, {n:2,label:'Agenda',icon:CalendarDays},
+  {n:3,label:'Grupos',icon:Users}, {n:4,label:'Conteúdo',icon:MessageCircle},
+  {n:5,label:'Shopee Vídeos',icon:Video}, {n:6,label:'Regras',icon:Settings2}
+] as const;
+const categories = ['Acessórios para Veículos','Agro','Alimentos e Bebidas','Animais','Bebês','Beleza e Cuidado Pessoal','Casa e Decoração','Celulares e Telefones','Eletrônicos','Esportes e Fitness','Ferramentas','Informática','Moda','Saúde'];
+const blank = (): Automation => ({
+  id:crypto.randomUUID(),name:'',description:'',active:true,createdAt:new Date().toISOString(),
+  days:[...week],interval:30,startTime:'00:00',endTime:'23:59',groupIds:[],
+  message:'🔥 *{produto}*\n\nDe ~R$ {preco_anterior}~ por *R$ {preco}*\n\n🛒 Garanta aqui: {link}',
+  productsPerRun:3,order:'Mais vendidos',sources:['Mercado Livre'],categories:[],
+  negativeWords:'',noRepeatHours:24,shopeeVideos:false
+});
 
-  useEffect(() => {
-    api.getAutomationStatus()
-      .then(res => setStatus(res))
-      .catch(() => setStatus({ configured: true, model: 'gemini-1.5-flash', capabilities: [] }));
-  }, []);
+export function AutomacoesPage(){
+  const {offers}=useOffers();
+  const [view,setView]=useState<View>('list');
+  const [step,setStep]=useState<Step>(1);
+  const [draft,setDraft]=useState<Automation>(blank());
+  const [saved,setSaved]=useState<Automation[]>(()=>{try{return JSON.parse(localStorage.getItem('central_automations')||'[]')}catch{return []}});
+  const [groups,setGroups]=useState<Group[]>([]);
+  const [groupLoading,setGroupLoading]=useState(false);
+  const [categorySearch,setCategorySearch]=useState('');
+  const [sourceTab,setSourceTab]=useState<'categories'|'types'|'keywords'>('categories');
+  const [feedback,setFeedback]=useState('');
 
-  // When offer selection changes, populate customProduct
-  const handleSelectOffer = (id: string) => {
-    setSelectedOfferId(id);
-    const found = offers.find(o => o.id === id);
-    if (found) {
-      setCustomProduct({
-        title: found.title,
-        category: found.category || 'Geral',
-        currentPrice: String(found.currentPrice),
-        previousPrice: found.previousPrice ? String(found.previousPrice) : '',
-        marketplace: found.marketplace || 'Mercado Livre',
-        affiliateUrl: found.affiliateUrl || found.originalUrl
-      });
-    }
-  };
+  useEffect(()=>{localStorage.setItem('central_automations',JSON.stringify(saved));},[saved]);
+  useEffect(()=>{if(view==='wizard'&&step===3&&!groups.length){setGroupLoading(true);api.getWuzapiGroups().then(r=>setGroups(r.groups||[])).finally(()=>setGroupLoading(false));}},[view,step,groups.length]);
 
-  const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2500);
-  };
+  const activeCount=saved.filter(a=>a.active).length;
+  const filteredCategories=categories.filter(c=>c.toLowerCase().includes(categorySearch.toLowerCase()));
+  const executions=Math.max(1,Math.floor((24*60)/draft.interval));
+  const requiredPerDay=executions*draft.productsPerRun*Math.max(1,draft.groupIds.length);
+  const sourceStock=offers.filter(o=>draft.sources.includes(o.marketplace)||draft.sources.includes('Listas de Produtos')).length;
+  const cycleMinutes=Math.max(1,Math.ceil(draft.productsPerRun*Math.max(1,draft.groupIds.length)*20/60));
 
-  const handleGenerate = async () => {
-    if (!customProduct.title.trim()) {
-      setError('Informe ou selecione um produto para gerar o conteúdo.');
-      return;
-    }
-    setError(null);
-    setLoading(true);
+  function startNew(){setDraft(blank());setStep(1);setFeedback('');setView('wizard');}
+  function toggleDay(day:string){setDraft(d=>({...d,days:d.days.includes(day)?d.days.filter(x=>x!==day):[...d.days,day]}));}
+  function toggleGroup(id:string){setDraft(d=>({...d,groupIds:d.groupIds.includes(id)?d.groupIds.filter(x=>x!==id):[...d.groupIds,id]}));}
+  function toggleSource(source:string){setDraft(d=>({...d,sources:d.sources.includes(source)?d.sources.filter(x=>x!==source):[...d.sources,source]}));}
+  function toggleCategory(category:string){setDraft(d=>({...d,categories:d.categories.includes(category)?d.categories.filter(x=>x!==category):[...d.categories,category]}));}
+  function next(){if(step===1&&!draft.name.trim()){setFeedback('Dê um nome para a automação antes de continuar.');return;}if(step===3&&!draft.groupIds.length){setFeedback('Selecione pelo menos um grupo do WhatsApp.');return;}setFeedback('');setStep(Math.min(6,step+1) as Step);window.scrollTo({top:0,behavior:'smooth'});}
+  function back(){if(step===1){setView('list');return;}setStep((step-1) as Step);window.scrollTo({top:0,behavior:'smooth'});}
+  function save(){const item={...draft,createdAt:new Date().toISOString()};setSaved(old=>[item,...old.filter(a=>a.id!==item.id)]);setFeedback('Automação salva com sucesso.');setView('list');}
+  function edit(item:Automation){setDraft(item);setStep(1);setView('wizard');}
+  function remove(id:string){if(confirm('Excluir esta automação?'))setSaved(old=>old.filter(a=>a.id!==id));}
 
-    try {
-      const payload = {
-        productTitle: customProduct.title,
-        category: customProduct.category,
-        currentPrice: Number(customProduct.currentPrice) || 0,
-        previousPrice: customProduct.previousPrice ? Number(customProduct.previousPrice) : undefined,
-        marketplace: customProduct.marketplace,
-        affiliateUrl: customProduct.affiliateUrl,
-        tone
-      };
+  if(view==='list'||view==='history') return <div className="auto-page">
+    <div className="auto-heading"><div><span>AUTOMAÇÕES</span><h1>{view==='history'?'Histórico':'Automações'}</h1><p>{view==='history'?'Acompanhe as automações criadas e alteradas.':`Gerencie seus envios automáticos no WhatsApp (${activeCount}/5)`}</p></div><div className="auto-actions"><button className="auto-btn ghost" onClick={()=>alert('Crie uma automação e avance pelas seis etapas. Cada etapa possui as instruções necessárias.')}><PlayCircle/>Assistir Tutorial</button><button className="auto-btn outline" onClick={()=>setView(view==='history'?'list':'history')}><History/>{view==='history'?'Voltar':'Histórico'}</button><button className="auto-btn primary" onClick={startNew}><Plus/>Nova Automação</button></div></div>
+    {saved.length===0?<div className="auto-empty"><Zap/><h2>Nenhuma automação criada</h2><p>Crie sua primeira automação para começar a enviar ofertas automaticamente.</p><button className="auto-btn primary" onClick={startNew}><Plus/>Criar Automação</button></div>:
+    <div className="auto-list">{saved.map(item=><article className="auto-card" key={item.id}><div className="auto-card-icon"><Zap/></div><div className="auto-card-main"><div><h3>{item.name}</h3><p>{item.description||'Automação de ofertas do WhatsApp'}</p></div><div className="auto-card-meta"><span><CalendarDays/>{item.days.length} dias</span><span><Clock3/>A cada {item.interval} min</span><span><Users/>{item.groupIds.length} grupo(s)</span><span><PackageSearch/>{item.productsPerRun} produtos/ciclo</span></div></div><label className="auto-switch"><input type="checkbox" checked={item.active} onChange={()=>setSaved(old=>old.map(a=>a.id===item.id?{...a,active:!a.active}:a))}/><i/></label><button className="auto-icon-btn" onClick={()=>edit(item)}><Settings2/></button><button className="auto-icon-btn danger" onClick={()=>remove(item.id)}><Trash2/></button></article>)}</div>}
+  </div>;
 
-      if (activeTab === 'copy') {
-        const res = await api.generateCopy(payload);
-        if (res.error) throw new Error(res.error);
-        setGeneratedCopy(res.copy);
-      } else if (activeTab === 'video') {
-        const res = await api.generateVideoScript(payload);
-        if (res.error) throw new Error(res.error);
-        setGeneratedScript(res.script);
-      } else if (activeTab === 'visual') {
-        const res = await api.generateVisualPrompts({
-          productTitle: customProduct.title,
-          category: customProduct.category
-        });
-        if (res.error) throw new Error(res.error);
-        setVisualPrompts({ imagePrompt: res.imagePrompt, videoPrompt: res.videoPrompt });
-      }
-    } catch (err) {
-      setError((err as Error).message || 'Erro ao comunicar com Google Gemini.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  return <div className="auto-page auto-wizard">
+    <div className="auto-heading"><div><span>AUTOMAÇÕES</span><h1>Nova Automação</h1><p>Configure sua automação passo a passo</p></div><div className="auto-online"><i/>ONLINE</div></div>
+    <div className="auto-steps">{steps.map(({n,label,icon:Icon})=><button key={n} className={step===n?'active':step>n?'done':''} onClick={()=>setStep(n as Step)}><span>{step>n?<Check/>:n}</span><Icon/>{label}</button>)}</div>
+    {feedback&&<div className="auto-alert"><AlertTriangle/>{feedback}</div>}
 
-  return (
-    <div style={{ maxWidth: '100%' }}>
-      <div className="admin-title">
-        <div>
-          <span>INTELIGÊNCIA ARTIFICIAL & CREATIVE STUDIO</span>
-          <h1>Automações <em>Gemini & Flow</em></h1>
-          <p>Gere copies de alta conversão para WhatsApp, roteiros de Reels/TikTok e prompts visuais para Google Flow e Imagen com 1 clique.</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: '#e0f2fe',
-            color: '#0369a1',
-            padding: '7px 12px',
-            borderRadius: '8px',
-            fontSize: '11px',
-            fontWeight: 700
-          }}>
-            <Sparkles size={14} color="#0284c7" />
-            {status?.configured ? `Gemini 2.5 Flash Conectado` : 'Google Gemini Pendente'}
-          </div>
-        </div>
-      </div>
+    <section className="auto-wizard-card">
+      {step===1&&<><SectionHead icon={<Box/>} title="Identidade da Automação" text="Dê um nome e descrição para identificar sua automação"/><Field label="Nome da Automação *"><input value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})} placeholder="Ex: Ofertas Eletrônicos Manhã"/></Field><Field label="Descrição (opcional)"><textarea rows={4} value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} placeholder="Descrição para uso interno, facilita a organização..."/></Field><Info>Escolha um nome curto que permita identificar rapidamente o objetivo desta automação.</Info></>}
 
-      {error && (
-        <div className="form-error" style={{ marginBottom: '16px' }}>
-          {error}
-        </div>
-      )}
+      {step===2&&<><SectionHead icon={<CalendarDays/>} title="Agenda / Tempo" text="Configure os dias, horários e intervalos de execução"/><h3>Dias da Semana</h3><p className="auto-muted">Selecione os dias em que a automação deve rodar</p><div className="auto-day-grid">{week.map(day=><label className={draft.days.includes(day)?'selected':''} key={day}><input type="checkbox" checked={draft.days.includes(day)} onChange={()=>toggleDay(day)}/><span>{draft.days.includes(day)&&<Check/>}</span><b>{day}</b><small>A automação funcionará no período definido abaixo.</small></label>)}</div><div className="auto-form-grid"><Field label="Executar a cada"><select value={draft.interval} onChange={e=>setDraft({...draft,interval:Number(e.target.value)})}>{[15,30,60,120,180,360,720,1440].map(v=><option key={v} value={v}>A cada {v<60?`${v} minutos`:v===60?'1 hora':`${v/60} horas`}</option>)}</select></Field><Field label="Horário de início"><input type="time" value={draft.startTime} onChange={e=>setDraft({...draft,startTime:e.target.value})}/></Field><Field label="Horário de término"><input type="time" value={draft.endTime} onChange={e=>setDraft({...draft,endTime:e.target.value})}/></Field></div></>}
 
-      {/* Grid: Configurator / Target Offer + Output Sandbox */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(320px, 420px) minmax(0, 1fr)',
-        gap: '20px',
-        alignItems: 'start'
-      }}>
-        {/* Left Column: Product Selection & Configuration */}
-        <div className="panel" style={{ padding: '20px' }}>
-          <h2 style={{ font: '700 14px Manrope', margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Zap size={16} color="#6c3ce9" />
-            1. Selecionar Produto & Dados
-          </h2>
+      {step===3&&<><SectionHead icon={<Users/>} title="Grupos e Canais (WhatsApp)" text="Selecione os números, grupos e canais para envio"/><h3>Grupos disponíveis</h3>{groupLoading?<div className="auto-loading">Sincronizando grupos...</div>:groups.length?<div className="auto-groups"><div className="auto-group-toolbar"><b>{groups.length} grupos encontrados</b><button onClick={()=>setDraft({...draft,groupIds:draft.groupIds.length===groups.length?[]:groups.map(g=>g.id)})}>Marcar todos</button></div>{groups.map(group=><label className={draft.groupIds.includes(group.id)?'selected':''} key={group.id}><input type="checkbox" checked={draft.groupIds.includes(group.id)} onChange={()=>toggleGroup(group.id)}/><span>{draft.groupIds.includes(group.id)&&<Check/>}</span><div><b>{group.name}</b><small>{group.members||0} membros • {group.status||'Disponível'}</small></div></label>)}</div>:<div className="auto-empty compact"><Users/><h2>Nenhum grupo sincronizado</h2><p>Conecte o WhatsApp em Integrações e atualize os grupos.</p></div>}</>}
 
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#4b5563', marginBottom: '6px' }}>
-            Preencher a partir de uma oferta existente:
-          </label>
-          <select
-            value={selectedOfferId}
-            onChange={(e) => handleSelectOffer(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '9px',
-              border: '1px solid #d1d5db',
-              borderRadius: '7px',
-              fontSize: '11px',
-              marginBottom: '16px'
-            }}
-          >
-            <option value="">-- Selecione uma oferta ou digite abaixo --</option>
-            {offers.map(o => (
-              <option key={o.id} value={o.id}>
-                {o.title.substring(0, 45)}... (R$ {o.currentPrice})
-              </option>
-            ))}
-          </select>
+      {step===4&&<><SectionHead icon={<MessageCircle/>} title="Conteúdo da Mensagem" text="Personalize o texto que acompanhará cada oferta"/><Field label="Modelo da mensagem"><textarea rows={9} value={draft.message} onChange={e=>setDraft({...draft,message:e.target.value})}/></Field><div className="auto-tags"><span>{'{produto}'}</span><span>{'{preco}'}</span><span>{'{preco_anterior}'}</span><span>{'{desconto}'}</span><span>{'{link}'}</span></div><Info>As variáveis serão substituídas automaticamente pelos dados reais de cada produto.</Info></>}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>
-                Nome do Produto:
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: Apple iPhone 15 128GB Preto Oficial"
-                value={customProduct.title}
-                onChange={(e) => setCustomProduct({ ...customProduct, title: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px 10px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '11px'
-                }}
-              />
-            </div>
+      {step===5&&<><SectionHead icon={<ShoppingBag/>} title="Fontes de Produtos" text="Escolha de onde virão as ofertas enviadas pela automação"/><Source name="Shopee" color="orange" detail="Incluir produtos da Shopee na automação" active={draft.sources.includes('Shopee')} onChange={()=>toggleSource('Shopee')}/>{draft.sources.includes('Shopee')&&<div className="auto-source-config"><div className="auto-form-grid two"><Field label="Produtos por execução"><select value={draft.productsPerRun} onChange={e=>setDraft({...draft,productsPerRun:Number(e.target.value)})}>{[1,2,3,4,5,8,10].map(v=><option value={v} key={v}>{v} produto{v>1?'s':''}</option>)}</select></Field><Field label="Ordenar por"><select value={draft.order} onChange={e=>setDraft({...draft,order:e.target.value})}><option>Mais vendidos</option><option>Maior comissão</option><option>Maior desconto</option><option>Mais recentes</option></select></Field></div><div className="auto-source-tabs"><button className={sourceTab==='types'?'active':''} onClick={()=>setSourceTab('types')}><Zap/>Tipos de Oferta (0)</button><button className={sourceTab==='categories'?'active':''} onClick={()=>setSourceTab('categories')}><Box/>Categorias ({draft.categories.length})</button><button className={sourceTab==='keywords'?'active':''} onClick={()=>setSourceTab('keywords')}><Search/>Palavras-Chave (0)</button></div>{sourceTab==='categories'&&<><div className="auto-search"><Search/><input value={categorySearch} onChange={e=>setCategorySearch(e.target.value)} placeholder="Buscar categoria..."/></div><div className="auto-category-list">{filteredCategories.map(c=><label key={c}><input type="checkbox" checked={draft.categories.includes(c)} onChange={()=>toggleCategory(c)}/><span>{draft.categories.includes(c)&&<Check/>}</span><div><b>{c}</b><small>Categoria disponível para seleção</small></div></label>)}</div></>}</div>}<Source name="Mercado Livre" color="yellow" detail={`${offers.filter(o=>o.marketplace==='Mercado Livre').length} produtos salvos disponíveis`} active={draft.sources.includes('Mercado Livre')} onChange={()=>toggleSource('Mercado Livre')}/><Source name="Listas de Produtos" color="blue" detail="Usar produtos salvos na Central de Ofertas" active={draft.sources.includes('Listas de Produtos')} onChange={()=>toggleSource('Listas de Produtos')}/><div className="auto-negative"><h3>Não enviar produtos com estas palavras <span>Novo</span></h3><p>Uma palavra por linha — opcional</p><textarea rows={5} value={draft.negativeWords} onChange={e=>setDraft({...draft,negativeWords:e.target.value})} placeholder={'touca\ncapinha\nrefil'}/></div><label className="auto-check-row"><input type="checkbox" checked={draft.shopeeVideos} onChange={e=>setDraft({...draft,shopeeVideos:e.target.checked})}/><span>{draft.shopeeVideos&&<Check/>}</span><div><b>Incluir Shopee Vídeos</b><small>Priorizar produtos que possuam conteúdo em vídeo</small></div></label></>}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>
-                  Preço Atual (R$):
-                </label>
-                <input
-                  type="number"
-                  placeholder="319.90"
-                  value={customProduct.currentPrice}
-                  onChange={(e) => setCustomProduct({ ...customProduct, currentPrice: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '11px'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>
-                  Preço Anterior (opcional):
-                </label>
-                <input
-                  type="number"
-                  placeholder="499.90"
-                  value={customProduct.previousPrice}
-                  onChange={(e) => setCustomProduct({ ...customProduct, previousPrice: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '11px'
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>
-                  Categoria:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Casa, Celulares, etc"
-                  value={customProduct.category}
-                  onChange={(e) => setCustomProduct({ ...customProduct, category: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '11px'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>
-                  Marketplace:
-                </label>
-                <input
-                  type="text"
-                  value={customProduct.marketplace}
-                  onChange={(e) => setCustomProduct({ ...customProduct, marketplace: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '11px'
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>
-                Link de Afiliado (inserido automaticamente no CTA):
-              </label>
-              <input
-                type="text"
-                placeholder="https://mercadolivre.com/sec/..."
-                value={customProduct.affiliateUrl}
-                onChange={(e) => setCustomProduct({ ...customProduct, affiliateUrl: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px 10px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '11px'
-                }}
-              />
-            </div>
-
-            {activeTab === 'copy' && (
-              <div>
-                <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>
-                  Tom da Mensagem:
-                </label>
-                <select
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value as any)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '11px'
-                  }}
-                >
-                  <option value="urgencia">🔥 Urgência & Oportunidade Relâmpago</option>
-                  <option value="descontraido">😎 Descontraído & Achadinho Imperdível</option>
-                  <option value="direto">⚡ Direto ao ponto (Preço + Link)</option>
-                  <option value="storytelling">📖 Storytelling (Problema vs Solução)</option>
-                </select>
-              </div>
-            )}
-
-            <button
-              className="btn primary"
-              onClick={handleGenerate}
-              disabled={loading}
-              style={{
-                width: '100%',
-                marginTop: '12px',
-                padding: '11px',
-                gap: '8px',
-                opacity: loading ? 0.7 : 1
-              }}
-            >
-              {loading ? (
-                <>
-                  <RefreshCw size={15} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
-                  Gerando com IA Google...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={15} />
-                  Gerar com Gemini & Flow
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Right Column: AI Automation Workspace */}
-        <div className="panel" style={{ padding: '20px' }}>
-          {/* Automation Navigation Tabs */}
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-            borderBottom: '1px solid #e5e7eb',
-            paddingBottom: '12px',
-            marginBottom: '16px'
-          }}>
-            <button
-              onClick={() => setActiveTab('copy')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '7px',
-                background: activeTab === 'copy' ? '#6c3ce9' : '#f3f4f6',
-                color: activeTab === 'copy' ? '#fff' : '#4b5563',
-                border: 0,
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              <MessageSquare size={14} />
-              Copy WhatsApp / Telegram
-            </button>
-
-            <button
-              onClick={() => setActiveTab('video')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '7px',
-                background: activeTab === 'video' ? '#6c3ce9' : '#f3f4f6',
-                color: activeTab === 'video' ? '#fff' : '#4b5563',
-                border: 0,
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              <Video size={14} />
-              Roteiro Vídeo (Reels / TikTok)
-            </button>
-
-            <button
-              onClick={() => setActiveTab('visual')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '7px',
-                background: activeTab === 'visual' ? '#6c3ce9' : '#f3f4f6',
-                color: activeTab === 'visual' ? '#fff' : '#4b5563',
-                border: 0,
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              <ImageIcon size={14} />
-              Prompts Visuais (Google Flow & Imagen)
-            </button>
-          </div>
-
-          {/* TAB 1: WHATSAPP COPY */}
-          {activeTab === 'copy' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
-                  Texto Pronto para Publicação nos Grupos
-                </span>
-                {generatedCopy && (
-                  <button
-                    className="btn"
-                    onClick={() => handleCopy(generatedCopy, 'copy')}
-                    style={{
-                      padding: '5px 10px',
-                      fontSize: '11px',
-                      background: copiedKey === 'copy' ? '#10b981' : '#f3f4f6',
-                      color: copiedKey === 'copy' ? '#fff' : '#374151',
-                      borderRadius: '6px'
-                    }}
-                  >
-                    {copiedKey === 'copy' ? <Check size={13} /> : <Copy size={13} />}
-                    {copiedKey === 'copy' ? 'Copiado!' : 'Copiar Texto'}
-                  </button>
-                )}
-              </div>
-
-              {generatedCopy ? (
-                <div style={{
-                  background: '#f9fafb',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  fontFamily: 'monospace',
-                  fontSize: '12px',
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: '1.6',
-                  color: '#1f2937'
-                }}>
-                  {generatedCopy}
-                </div>
-              ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '50px 20px',
-                  border: '2px dashed #e5e7eb',
-                  borderRadius: '10px',
-                  color: '#9ca3af'
-                }}>
-                  <MessageSquare size={32} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
-                  <b style={{ display: 'block', fontSize: '12px', color: '#4b5563', marginBottom: '4px' }}>
-                    Nenhuma copy gerada ainda
-                  </b>
-                  <p style={{ margin: 0, fontSize: '11px' }}>
-                    Selecione um produto ao lado e clique no botão roxo para criar a mensagem com gatilhos de vendas.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: VIDEO SCRIPT */}
-          {activeTab === 'video' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
-                  Roteiro com Ganchos de 30s para Criadores / TikTok / Reels
-                </span>
-                {generatedScript && (
-                  <button
-                    className="btn"
-                    onClick={() => handleCopy(generatedScript, 'script')}
-                    style={{
-                      padding: '5px 10px',
-                      fontSize: '11px',
-                      background: copiedKey === 'script' ? '#10b981' : '#f3f4f6',
-                      color: copiedKey === 'script' ? '#fff' : '#374151',
-                      borderRadius: '6px'
-                    }}
-                  >
-                    {copiedKey === 'script' ? <Check size={13} /> : <Copy size={13} />}
-                    {copiedKey === 'script' ? 'Copiado!' : 'Copiar Roteiro'}
-                  </button>
-                )}
-              </div>
-
-              {generatedScript ? (
-                <div style={{
-                  background: '#f9fafb',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  fontSize: '12px',
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: '1.6',
-                  color: '#1f2937'
-                }}>
-                  {generatedScript}
-                </div>
-              ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '50px 20px',
-                  border: '2px dashed #e5e7eb',
-                  borderRadius: '10px',
-                  color: '#9ca3af'
-                }}>
-                  <Video size={32} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
-                  <b style={{ display: 'block', fontSize: '12px', color: '#4b5563', marginBottom: '4px' }}>
-                    Roteiro pronto para gravação e narração de vídeo
-                  </b>
-                  <p style={{ margin: 0, fontSize: '11px' }}>
-                    Clique em Gerar para criar o gancho inicial de 3 segundos, apresentação e chamada de ação.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: VISUAL PROMPTS (GOOGLE FLOW / IMAGEN) */}
-          {activeTab === 'visual' && (
-            <div>
-              <div style={{ marginBottom: '14px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
-                  Prompts de Imagem e Vídeo B-roll para Google Flow & IA Generativa
-                </span>
-                <p style={{ fontSize: '10px', color: '#6b7280', margin: '4px 0 0' }}>
-                  Copie os prompts abaixo e utilize diretamente no Google Flow, Imagen, Midjourney ou geradores de vídeo.
-                </p>
-              </div>
-
-              {visualPrompts ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <b style={{ fontSize: '11px', color: '#4338ca', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <ImageIcon size={13} />
-                        Prompt de Imagem Publicitária (Google Imagen / Midjourney)
-                      </b>
-                      <button
-                        className="btn"
-                        onClick={() => handleCopy(visualPrompts.imagePrompt, 'imgPrompt')}
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '10px',
-                          background: copiedKey === 'imgPrompt' ? '#10b981' : '#fff',
-                          color: copiedKey === 'imgPrompt' ? '#fff' : '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '5px'
-                        }}
-                      >
-                        {copiedKey === 'imgPrompt' ? <Check size={11} /> : <Copy size={11} />}
-                        {copiedKey === 'imgPrompt' ? 'Copiado' : 'Copiar'}
-                      </button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#374151', lineHeight: '1.5', fontFamily: 'monospace' }}>
-                      {visualPrompts.imagePrompt}
-                    </div>
-                  </div>
-
-                  <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <b style={{ fontSize: '11px', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Play size={13} />
-                        Prompt de Vídeo B-Roll (Google Flow / Runway / Luma)
-                      </b>
-                      <button
-                        className="btn"
-                        onClick={() => handleCopy(visualPrompts.videoPrompt, 'vidPrompt')}
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '10px',
-                          background: copiedKey === 'vidPrompt' ? '#10b981' : '#fff',
-                          color: copiedKey === 'vidPrompt' ? '#fff' : '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '5px'
-                        }}
-                      >
-                        {copiedKey === 'vidPrompt' ? <Check size={11} /> : <Copy size={11} />}
-                        {copiedKey === 'vidPrompt' ? 'Copiado' : 'Copiar'}
-                      </button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#374151', lineHeight: '1.5', fontFamily: 'monospace' }}>
-                      {visualPrompts.videoPrompt}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '50px 20px',
-                  border: '2px dashed #e5e7eb',
-                  borderRadius: '10px',
-                  color: '#9ca3af'
-                }}>
-                  <ImageIcon size={32} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
-                  <b style={{ display: 'block', fontSize: '12px', color: '#4b5563', marginBottom: '4px' }}>
-                    Gere fotos de estúdio e b-rolls em vídeo com IA
-                  </b>
-                  <p style={{ margin: 0, fontSize: '11px' }}>
-                    Clique no botão para o Gemini sintetizar os parâmetros e diretrizes ideais de câmera, iluminação e enquadramento.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+      {step===6&&<><SectionHead icon={<Settings2/>} title="Regras e Validação" text="Revise a capacidade e evite repetição de ofertas"/><Field label="Não repetir produto (horas)"><input type="number" min="1" max="720" value={draft.noRepeatHours} onChange={e=>setDraft({...draft,noRepeatHours:Number(e.target.value)})}/><small>O mesmo produto não será enviado novamente ao mesmo grupo neste período.</small></Field><div className="auto-health good"><Check/><div><b>Cada ciclo leva ~{cycleMinutes} min — cabe no intervalo de {draft.interval} min</b><p>{draft.productsPerRun} item(ns) para {Math.max(1,draft.groupIds.length)} grupo(s) por ciclo.</p></div></div><div className={`auto-health ${sourceStock>=requiredPerDay?'good':'bad'}`}><PackageSearch/><div><b>{sourceStock>=requiredPerDay?'Sua automação tem produtos suficientes':'Sua automação pode ficar sem produtos'}</b><p>~{executions} execuções/dia • {requiredPerDay} produtos necessários por dia • {sourceStock} produtos salvos disponíveis.</p></div></div><div className="auto-summary"><h3>Resumo da automação</h3><div><span>Nome<b>{draft.name}</b></span><span>Agenda<b>A cada {draft.interval} min</b></span><span>Grupos<b>{draft.groupIds.length}</b></span><span>Fontes<b>{draft.sources.length}</b></span><span>Produtos/ciclo<b>{draft.productsPerRun}</b></span></div></div></>}
+    </section>
+    <div className="auto-nav"><button className="auto-btn outline" onClick={back}><ArrowLeft/>Voltar</button>{step<6?<button className="auto-btn primary" onClick={next}>Próximo<ArrowRight/></button>:<button className="auto-btn primary" onClick={save}><Save/>Salvar Automação</button>}</div>
+  </div>;
 }
+
+function SectionHead({icon,title,text}:{icon:React.ReactNode;title:string;text:string}){return <div className="auto-section-head"><span>{icon}</span><div><h2>{title}</h2><p>{text}</p></div></div>}
+function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="auto-field"><b>{label}</b>{children}</label>}
+function Info({children}:{children:React.ReactNode}){return <div className="auto-info"><Sparkles/>{children}</div>}
+function Source({name,detail,color,active,onChange}:{name:string;detail:string;color:string;active:boolean;onChange:()=>void}){return <div className={`auto-source ${color}`}><div className="auto-source-logo">{name==='Shopee'?'S':name==='Mercado Livre'?'M':'L'}</div><div><b>{name}</b><small>{detail}</small></div><label className="auto-switch"><input type="checkbox" checked={active} onChange={onChange}/><i/></label></div>}
