@@ -24,6 +24,7 @@ export function IntegrationsPage(){
   const [loadingWuz, setLoadingWuz] = useState(false);
   const [facebookData, setFacebookData] = useState<{configured:boolean;connected:boolean;page:{id:string;name:string;category?:string}|null;pages:Array<{id:string;name:string;category?:string}>} | null>(null);
   const [loadingFacebook, setLoadingFacebook] = useState(false);
+  const [shopeeData, setShopeeData] = useState<{configured:boolean;connected:boolean;status:string;appId?:string} | null>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
@@ -45,6 +46,13 @@ export function IntegrationsPage(){
     }
     try { setFacebookData(await api.getFacebookStatus()); }
     catch { setFacebookData({configured:false,connected:false,page:null,pages:[]}); }
+
+    try {
+      const shopee = await api.getShopeeStatus();
+      setShopeeData(shopee);
+    } catch {
+      setShopeeData({configured:false,connected:false,status:'Não conectada'});
+    }
   };
 
   useEffect(() => {
@@ -216,6 +224,7 @@ export function IntegrationsPage(){
           const isML = item.name === 'Mercado Livre';
           const isWuz = item.name.includes('WuzAPI') || item.name.includes('WhatsApp');
           const isFacebook = item.name === 'Facebook';
+          const isShopee = item.name === 'Shopee';
 
           let isConnected = false;
           let statusText = item.status;
@@ -229,6 +238,9 @@ export function IntegrationsPage(){
           } else if (isFacebook) {
             isConnected=!!facebookData?.connected;
             statusText=facebookData?.connected?`Conectada (${facebookData.page?.name || 'Página'})`:(facebookData?.configured?'Não conectada':'Configuração pendente');
+          } else if (isShopee) {
+            isConnected = !!shopeeData?.connected;
+            statusText = shopeeData ? (shopeeData.connected ? `Conectada (AppID: ${shopeeData.appId || 'Ativo'})` : (shopeeData.configured ? 'Erro na validação' : 'Não configurada')) : 'Carregando...';
           }
 
           return (
@@ -270,6 +282,16 @@ export function IntegrationsPage(){
                 ) : (
                   <button className="btn primary integration-action" style={{background:'#10b981',borderColor:'#10b981'}} disabled={loadingWuz} onClick={handleConnectWuzapi}>
                     <Plug/>{loadingWuz ? 'Carregando...' : 'Escanear QR Code (karenpessoal)'}
+                  </button>
+                )
+              ) : isShopee ? (
+                isConnected ? (
+                  <button className="outline-btn integration-action" style={{borderColor:'#ee4d2d',color:'#ee4d2d'}} onClick={()=>alert('A API Oficial da Shopee Afiliados está ativa e validada com sucesso com seu AppID!')}>
+                    <Plug/>API Ativa & Validada
+                  </button>
+                ) : (
+                  <button className="btn primary integration-action" style={{background:'#ee4d2d',borderColor:'#ee4d2d'}} onClick={()=>alert('Verifique as variáveis SHOPEE_APP_ID e SHOPEE_SECRET no seu ambiente.')}>
+                    <Plug/>Configurar Shopee API
                   </button>
                 )
               ) : (

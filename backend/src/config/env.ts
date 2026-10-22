@@ -25,5 +25,7 @@ const schema=z.object({
   ,FACEBOOK_APP_SECRET:z.string().default('')
   ,FACEBOOK_REDIRECT_URI:z.string().default('http://localhost:3333/api/integrations/facebook/callback')
   ,FACEBOOK_GRAPH_VERSION:z.string().default('v24.0')
+  ,SHOPEE_APP_ID:z.string().default('')
+  ,SHOPEE_SECRET:z.string().default('')
 });
 export const env=schema.parse(process.env);
