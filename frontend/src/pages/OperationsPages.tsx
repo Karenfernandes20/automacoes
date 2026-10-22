@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { useOffers } from '../hooks/useOffers';
 
 const integrationsList=[
+  {name:'Facebook',type:'Página',initial:'f',color:'#1877f2',status:'Não conectada',description:'Conecte uma Página oficial para publicar suas promoções.'},
   {name:'Amazon Associados',type:'Afiliados',initial:'a',color:'#151515',status:'Não conectada',description:'Importe pedidos, comissões e relatórios de conversão.'},
   {name:'Mercado Livre',type:'Afiliados',initial:'M',color:'#ffe600',status:'Não conectada',description:'Centralize links e resultados do programa de afiliados.'},
   {name:'Shopee',type:'Afiliados',initial:'S',color:'#ee4d2d',status:'Não conectada',description:'Acompanhe links, pedidos elegíveis e comissões.'},
@@ -21,6 +22,8 @@ export function IntegrationsPage(){
   const [loadingMl, setLoadingMl] = useState(false);
   const [wuzData, setWuzData] = useState<{connected:boolean;loggedIn:boolean;status:string;instance:string;jid:string|null;phone:string|null} | null>(null);
   const [loadingWuz, setLoadingWuz] = useState(false);
+  const [facebookData, setFacebookData] = useState<{configured:boolean;connected:boolean;page:{id:string;name:string;category?:string}|null;pages:Array<{id:string;name:string;category?:string}>} | null>(null);
+  const [loadingFacebook, setLoadingFacebook] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
@@ -40,6 +43,8 @@ export function IntegrationsPage(){
     } catch {
       setWuzData({connected: false, loggedIn: false, status: 'Não conectada', instance: 'karenpessoal', jid: null, phone: null});
     }
+    try { setFacebookData(await api.getFacebookStatus()); }
+    catch { setFacebookData({configured:false,connected:false,page:null,pages:[]}); }
   };
 
   useEffect(() => {
@@ -47,6 +52,8 @@ export function IntegrationsPage(){
 
     const statusParam = searchParams.get('ml_status');
     const errorParam = searchParams.get('ml_error');
+    const fbStatus = searchParams.get('fb_status');
+    const fbError = searchParams.get('fb_error');
 
     if (statusParam === 'success') {
       setFeedback({type: 'success', message: 'Conta do Mercado Livre conectada com sucesso!'});
@@ -57,6 +64,13 @@ export function IntegrationsPage(){
       setFeedback({type: 'error', message: `Erro ao conectar: ${decodeURIComponent(errorParam)}`});
       searchParams.delete('ml_error');
       setSearchParams(searchParams, {replace: true});
+    }
+    if (fbStatus === 'success') {
+      setFeedback({type:'success',message:'Página do Facebook conectada com sucesso!'});
+      searchParams.delete('fb_status'); setSearchParams(searchParams,{replace:true}); void loadStatus();
+    } else if (fbError) {
+      setFeedback({type:'error',message:`Erro ao conectar Facebook: ${decodeURIComponent(fbError)}`});
+      searchParams.delete('fb_error'); setSearchParams(searchParams,{replace:true});
     }
   }, []);
 
@@ -115,6 +129,27 @@ export function IntegrationsPage(){
     } finally {
       setLoadingMl(false);
     }
+  };
+
+  const handleConnectFacebook = async () => {
+    setLoadingFacebook(true); setFeedback(null);
+    try {
+      const {authUrl}=await api.getFacebookAuthUrl();
+      const popup=window.open(authUrl,'facebook-oauth','popup=yes,width=720,height=760');
+      if(!popup) throw new Error('Permita pop-ups para conectar o Facebook.');
+      const monitor=window.setInterval(()=>{if(popup.closed){window.clearInterval(monitor);setLoadingFacebook(false);void loadStatus();}},500);
+      window.setTimeout(()=>{window.clearInterval(monitor);setLoadingFacebook(false);},120000);
+    } catch(err) {
+      setFeedback({type:'error',message:err instanceof Error?err.message:'Falha ao conectar Facebook'}); setLoadingFacebook(false);
+    }
+  };
+
+  const handleDisconnectFacebook = async () => {
+    if(!confirm('Deseja desconectar a Página do Facebook?')) return;
+    setLoadingFacebook(true);
+    try { await api.disconnectFacebook(); await loadStatus(); setFeedback({type:'success',message:'Facebook desconectado.'}); }
+    catch(err){setFeedback({type:'error',message:err instanceof Error?err.message:'Falha ao desconectar Facebook'});}
+    finally{setLoadingFacebook(false);}
   };
 
   const handleConnectWuzapi = async () => {
@@ -180,6 +215,7 @@ export function IntegrationsPage(){
         {integrationsList.map(item => {
           const isML = item.name === 'Mercado Livre';
           const isWuz = item.name.includes('WuzAPI') || item.name.includes('WhatsApp');
+          const isFacebook = item.name === 'Facebook';
 
           let isConnected = false;
           let statusText = item.status;
@@ -190,6 +226,9 @@ export function IntegrationsPage(){
           } else if (isWuz) {
             isConnected = !!wuzData?.connected;
             statusText = wuzData ? (wuzData.connected ? `Conectada (${wuzData.phone || wuzData.instance})` : `Não conectada (${wuzData.instance})`) : 'Carregando...';
+          } else if (isFacebook) {
+            isConnected=!!facebookData?.connected;
+            statusText=facebookData?.connected?`Conectada (${facebookData.page?.name || 'Página'})`:(facebookData?.configured?'Não conectada':'Configuração pendente');
           }
 
           return (
@@ -208,7 +247,12 @@ export function IntegrationsPage(){
                 <b>{statusText}</b>
               </div>
 
-              {isML ? (
+              {isFacebook ? (
+                isConnected ? <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {facebookData&&facebookData.pages.length>1&&<select value={facebookData.page?.id||''} onChange={async e=>{setFacebookData(await api.selectFacebookPage(e.target.value));}} style={{padding:'9px',border:'1px solid #d1d5db',borderRadius:'7px'}}>{facebookData.pages.map(page=><option key={page.id} value={page.id}>{page.name}</option>)}</select>}
+                  <button className="outline-btn integration-action" style={{color:'#ef4444',borderColor:'#ef4444'}} disabled={loadingFacebook} onClick={handleDisconnectFacebook}><Plug/>Desconectar Facebook</button>
+                </div> : <button className="btn primary integration-action" style={{background:'#1877f2',borderColor:'#1877f2'}} disabled={loadingFacebook} onClick={handleConnectFacebook}><Plug/>{loadingFacebook?'Conectando...':'Conectar Página do Facebook'}</button>
+              ) : isML ? (
                 isConnected ? (
                   <button className="outline-btn integration-action" style={{color:'#ef4444',borderColor:'#ef4444'}} disabled={loadingMl} onClick={handleDisconnectML}>
                     <Plug/>Desconectar conta
