@@ -655,20 +655,29 @@ export const mercadoLivreService = {
     };
   },
 
-  // 2. GERAÇÃO DE LINKS DE AFILIADO / TRACKING
-  generateAffiliateLink(url: string, _tag: string = 'central-ofertas') {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    const isOfficialHost = host === 'meli.la' || host === 'mercadolivre.com' || host === 'mercadolivre.com.br' || host.endsWith('.mercadolivre.com.br');
-    const isAffiliateLink = host === 'meli.la' || parsed.pathname.startsWith('/sec/');
+  // 2. GERAÇÃO DE LINKS DE AFILIADO / TRACKING AUTOMÁTICO
+  generateAffiliateLink(url: string, tag: string = 'central-ofertas') {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      const isOfficialHost = host === 'meli.la' || host === 'mercadolivre.com' || host === 'mercadolivre.com.br' || host.endsWith('.mercadolivre.com.br');
+      if (!isOfficialHost) {
+        throw new Error('Use um link oficial do Mercado Livre.');
+      }
 
-    if (!isOfficialHost) {
-      throw new Error('Use um link oficial do Mercado Livre.');
+      // Se já for um link curto de afiliado meli.la ou /sec/, mantém como está
+      if (host === 'meli.la' || parsed.pathname.startsWith('/sec/')) {
+        return parsed.toString();
+      }
+
+      // Formata automaticamente o link de produto com tracking da tag de afiliado
+      const affiliateTag = tag || 'central-ofertas';
+      parsed.searchParams.set('matt_tool', affiliateTag);
+      parsed.searchParams.set('tracking_id', affiliateTag);
+      return parsed.toString();
+    } catch {
+      return url;
     }
-    if (!isAffiliateLink) {
-      throw new Error('Este é um link comum de produto. Gere o link na Central de Afiliados do Mercado Livre e cole-o no campo Link de afiliado.');
-    }
-    return parsed.toString();
   },
 
   // 3. CONSULTA DE PEDIDOS E MÉTRICAS DE AFILIADO DA CONTA REAL

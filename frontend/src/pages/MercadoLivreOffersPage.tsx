@@ -91,16 +91,20 @@ export function MercadoLivreOffersPage() {
   }
 
   async function saveOffer(item: CatalogItem) {
-    const affiliateUrl = window.prompt(
-      'Cole o link deste produto gerado na Central de Afiliados do Mercado Livre.\n\nO link comum não gera comissão:',
-      ''
-    );
-    if (!affiliateUrl) return;
     try {
-      const parsed = new URL(affiliateUrl);
-      if (!parsed.hostname.includes('mercadolivre.com') && parsed.hostname !== 'meli.la') {
-        throw new Error('O link informado não pertence ao Mercado Livre.');
+      setSavedId(item.id);
+      let affiliateUrl = item.url;
+      try {
+        const linkRes = await api.generateMercadoLivreLink(item.url, 'central-ofertas');
+        if (linkRes.affiliateUrl) affiliateUrl = linkRes.affiliateUrl;
+      } catch {
+        // Fallback com parâmetros de tracking direto
+        const urlObj = new URL(item.url);
+        urlObj.searchParams.set('matt_tool', 'central-ofertas');
+        urlObj.searchParams.set('tracking_id', 'central-ofertas');
+        affiliateUrl = urlObj.toString();
       }
+
       await api.createOffer({
         title: item.title,
         marketplace: 'Mercado Livre',
@@ -116,9 +120,10 @@ export function MercadoLivreOffersPage() {
         status: 'DRAFT',
         publishAt: null
       });
-      setSavedId(item.id);
+
       setTimeout(() => setSavedId(null), 3000);
     } catch (err) {
+      setSavedId(null);
       alert(err instanceof Error ? err.message : 'Não foi possível salvar a oferta.');
     }
   }
