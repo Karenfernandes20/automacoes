@@ -365,20 +365,32 @@ export const mercadoLivreService = {
       const endpoint = entry.type === 'PRODUCT' ? `products/${entry.id}` : `items/${entry.id}`;
       const response = await fetch(`https://api.mercadolibre.com/${endpoint}`, { headers });
       if (!response.ok) return null;
-      const body = await response.json();
-      const winner = entry.type === 'PRODUCT' ? body.buy_box_winner : body;
-      const permalink = winner?.permalink || body.permalink;
+      const catalogBody = await response.json();
+      let body = catalogBody;
+
+      // O endpoint de produto de catálogo não fornece sempre o permalink.
+      // Resolvemos o anúncio vencedor (MLB...) e buscamos seus dados públicos.
+      if (entry.type === 'PRODUCT') {
+        const winnerId = catalogBody.buy_box_winner?.item_id;
+        if (!winnerId) return null;
+        const itemResponse = await fetch(`https://api.mercadolibre.com/items/${winnerId}`, { headers });
+        if (!itemResponse.ok) return null;
+        body = await itemResponse.json();
+      }
+
+      const winner = body;
+      const permalink = body.permalink;
       if (!winner || !permalink) return null;
       const price = Number(winner.price || 0);
       const oldPrice = Number(winner.original_price || winner.base_price || price);
       return {
-        id: winner.item_id || body.id,
-        title: winner.title || body.name || body.title,
-        categoryId: winner.category_id || body.category_id,
+        id: body.id,
+        title: body.title || catalogBody.name,
+        categoryId: body.category_id,
         price,
         oldPrice,
         discount: oldPrice > price ? Math.round((1 - price / oldPrice) * 100) : 0,
-        imageUrl: String(winner.thumbnail || body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
+        imageUrl: String(body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || catalogBody.pictures?.[0]?.secure_url || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
         url: permalink,
         freeShipping: Boolean(winner.shipping?.free_shipping),
         condition: winner.condition || 'new',
