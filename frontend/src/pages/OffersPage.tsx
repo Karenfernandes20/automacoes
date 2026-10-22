@@ -142,14 +142,14 @@ export function OffersPage(){
                     </div>
                   </td>
                   <td className="hide-on-compact"><small>{date(o.verifiedAt)}</small></td>
-                  <td>
-                    <div className="row-actions" style={{justifyContent:'flex-end',gap:'6px'}}>
+                  <td style={{whiteSpace:'nowrap',textAlign:'right'}}>
+                    <div style={{display:'inline-flex',alignItems:'center',gap:'6px',justifyContent:'flex-end'}}>
                       <button 
-                        className="btn small"
+                        type="button"
                         style={{
                           background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
                           color: '#fff',
-                          padding: '5px 10px',
+                          padding: '6px 12px',
                           fontSize: '11px',
                           fontWeight: 700,
                           borderRadius: '6px',
@@ -158,19 +158,25 @@ export function OffersPage(){
                           gap: '5px',
                           boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
                           border: 0,
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          width: 'auto',
+                          height: 'auto',
+                          flexShrink: 0
                         }}
                         title="Abrir divulgação com IA e grupos recomendados no Facebook"
                         onClick={() => setPublishing(o)}
                       >
-                        <Sparkles size={12} /> Divulgar
+                        <Sparkles size={13} style={{flexShrink:0}} /> Divulgar
                       </button>
 
-                      {o.status==='PENDING'&&<button title="Aprovar" onClick={()=>changeStatus(o,'APPROVED')}><Check/></button>}
-                      {o.status==='APPROVED'&&<button title="Publicar" onClick={()=>changeStatus(o,'PUBLISHED')}><Eye/></button>}
-                      <button title="Editar oferta" onClick={()=>setEditing(o)}><Edit3/></button>
-                      <button title="Remover" onClick={()=>remove(o)}><Trash2/></button>
-                      <button><MoreHorizontal/></button>
+                      <div className="row-actions" style={{display:'inline-flex',gap:'3px'}}>
+                        {o.status==='PENDING'&&<button title="Aprovar" onClick={()=>changeStatus(o,'APPROVED')}><Check/></button>}
+                        {o.status==='APPROVED'&&<button title="Publicar" onClick={()=>changeStatus(o,'PUBLISHED')}><Eye/></button>}
+                        <button title="Editar oferta" onClick={()=>setEditing(o)}><Edit3/></button>
+                        <button title="Remover" onClick={()=>remove(o)}><Trash2/></button>
+                        <button><MoreHorizontal/></button>
+                      </div>
                     </div>
                   </td>
                 </tr>
