@@ -35,7 +35,7 @@ export function DashboardPage(){
         <p>Acompanhe suas ofertas cadastradas, integração ativa e conversões reais.</p>
       </div>
       <div style={{display:'flex',gap:'8px'}}>
-        <Link className="btn outline-btn" to="/admin/mercadolivre"><Flame size={15}/>Top Mercado Livre</Link>
+        <Link className="btn outline-btn" to="/admin/top-produtos"><Flame size={15}/>Top Produtos</Link>
         <Link className="btn primary" to="/admin/ofertas"><Plus size={15}/>Nova oferta</Link>
       </div>
     </div>
