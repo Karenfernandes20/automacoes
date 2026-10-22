@@ -248,7 +248,9 @@ export const mercadoLivreService = {
       headers: { Authorization: `Bearer ${token.access_token}` }
     });
     if (res.status === 401 || res.status === 403) {
-      throw new Error('O Mercado Livre recusou a busca. Reconecte sua conta em Integrações para renovar a autorização.');
+      // A busca global do marketplace não está disponível para todos os
+      // aplicativos. Usa o recurso oficial de mais vendidos como alternativa.
+      return this.getHighlightsCatalog(params);
     }
     if (!res.ok) throw new Error('Não foi possível consultar o catálogo do Mercado Livre agora.');
 
@@ -299,6 +301,90 @@ export const mercadoLivreService = {
       availableSorts: data.available_sorts || [],
       filters: data.filters || [],
       availableFilters: data.available_filters || []
+    };
+  },
+
+  async getHighlightsCatalog(params: { query?: string; category?: string; page?: number; limit?: number; onlyOffers?: boolean }) {
+    const token = await this.getValidToken();
+    if (!token) throw new Error('A conexão com o Mercado Livre expirou. Reconecte a conta em Integrações.');
+    const headers = { Authorization: `Bearer ${token.access_token}` };
+
+    const leafIds: string[] = [];
+    const findLeaves = async (id: string, remaining: number, depth = 0): Promise<void> => {
+      if (leafIds.length >= remaining || depth > 4) return;
+      const detailRes = await fetch(`https://api.mercadolibre.com/categories/${id}`, { headers });
+      if (!detailRes.ok) return;
+      const detail = await detailRes.json() as { children_categories?: Array<{ id: string }> };
+      const children = detail.children_categories || [];
+      if (children.length === 0) {
+        leafIds.push(id);
+        return;
+      }
+      for (const child of children.slice(0, 8)) {
+        await findLeaves(child.id, remaining, depth + 1);
+        if (leafIds.length >= remaining) break;
+      }
+    };
+
+    if (params.category) {
+      await findLeaves(params.category, 8);
+    } else {
+      const categories = await this.getCatalogCategories();
+      for (const category of categories.slice(0, 12)) {
+        await findLeaves(category.id, 12);
+        if (leafIds.length >= 12) break;
+      }
+    }
+
+    const rankings = await Promise.all(leafIds.map(async categoryId => {
+      const response = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${categoryId}`, { headers });
+      if (!response.ok) return [];
+      const body = await response.json() as { content?: Array<{ id: string; type: 'ITEM'|'PRODUCT'|'USER_PRODUCT'; position: number }> };
+      return body.content || [];
+    }));
+    const ranked = rankings.flat().filter((entry, index, all) => all.findIndex(other => other.id === entry.id) === index).slice(0, 120);
+
+    const details = await Promise.all(ranked.map(async entry => {
+      const endpoint = entry.type === 'PRODUCT' ? `products/${entry.id}` : `items/${entry.id}`;
+      const response = await fetch(`https://api.mercadolibre.com/${endpoint}`, { headers });
+      if (!response.ok) return null;
+      const body = await response.json();
+      const winner = entry.type === 'PRODUCT' ? body.buy_box_winner : body;
+      if (!winner || !body.permalink) return null;
+      const price = Number(winner.price || 0);
+      const oldPrice = Number(winner.original_price || winner.base_price || price);
+      return {
+        id: winner.item_id || body.id,
+        title: body.name || body.title,
+        categoryId: winner.category_id || body.category_id,
+        price,
+        oldPrice,
+        discount: oldPrice > price ? Math.round((1 - price / oldPrice) * 100) : 0,
+        imageUrl: String(body.pictures?.[0]?.secure_url || body.pictures?.[0]?.url || body.thumbnail || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
+        url: body.permalink,
+        freeShipping: Boolean(winner.shipping?.free_shipping),
+        condition: winner.condition || 'new',
+        availableQuantity: winner.available_quantity || 0,
+        officialStoreName: null,
+        installments: null,
+        ranking: entry.position
+      };
+    }));
+
+    let items = details.filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (params.query?.trim()) {
+      const term = params.query.toLocaleLowerCase('pt-BR').trim();
+      items = items.filter(item => item.title.toLocaleLowerCase('pt-BR').includes(term));
+    }
+    if (params.onlyOffers) items = items.filter(item => item.discount > 0);
+    const limit = Math.min(Math.max(params.limit || 48, 1), 50);
+    const page = Math.max(params.page || 1, 1);
+    const total = items.length;
+    const pageItems = items.slice((page - 1) * limit, page * limit);
+    return {
+      items: pageItems,
+      paging: { page, limit, total, accessibleTotal: total, pages: Math.max(1, Math.ceil(total / limit)) },
+      availableSorts: [], filters: [], availableFilters: [], source: 'highlights'
     };
   },
 
