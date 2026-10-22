@@ -461,34 +461,21 @@ export const mercadoLivreService = {
       const productResponse = await fetch(`https://api.mercadolibre.com/products/${first.id}`, { headers });
       const productBody = await productResponse.json().catch(() => ({}));
       const winner = productBody.buy_box_winner;
-      product = {
-        status: productResponse.status,
-        keys: Object.keys(productBody).slice(0, 25),
-        winnerKeys: winner ? Object.keys(winner).slice(0, 25) : [],
-        winnerItemId: winner?.item_id || winner?.id || null
-      };
       const productItemsResponse = await fetch(`https://api.mercadolibre.com/products/${first.id}/items`, { headers });
       const productItemsBody = await productItemsResponse.json().catch(() => ({}));
       const listings = Array.isArray(productItemsBody.results) ? productItemsBody.results : [];
-      const firstItemId = listings[0]?.item_id || null;
-      let itemDetail: Record<string, unknown> | null = null;
-      if (firstItemId) {
-        const itemRes = await fetch(`https://api.mercadolibre.com/items/${firstItemId}`, { headers });
-        const itemJson = await itemRes.json().catch(() => ({}));
-        itemDetail = {
-          status: itemRes.status,
-          id: itemJson.id,
-          permalink: itemJson.permalink || null,
-          error: itemJson.error || itemJson.message || null
-        };
-      }
+      const firstListing = listings[0] || null;
+      product = {
+        status: productResponse.status,
+        name: productBody.name || null,
+        permalink: productBody.permalink || null,
+        pictures: productBody.pictures?.slice(0, 2) || null,
+        buy_box_winner: productBody.buy_box_winner || null
+      };
       productItems = {
         status: productItemsResponse.status,
-        keys: Object.keys(productItemsBody).slice(0, 25),
         resultCount: listings.length,
-        firstItemId,
-        firstItemDetail: itemDetail,
-        error: productItemsBody.error || productItemsBody.message || null
+        firstListing
       };
       const itemId = winner?.item_id || winner?.id;
       if (itemId) {
