@@ -382,7 +382,7 @@ export const mercadoLivreService = {
         const firstPic = catalogBody.pictures?.[0];
         const imageUrl = String(firstPic?.url || firstPic?.secure_url || '').replace(/^http:/, 'https:');
         const itemId = preferred?.item_id;
-        const url = itemId ? `https://produto.mercadolivre.com.br/${itemId}` : `https://www.mercadolivre.com.br/p/${entry.id}`;
+        const url = `https://www.mercadolivre.com.br/p/${entry.id}`;
 
         return {
           id: entry.id,
