@@ -12,6 +12,12 @@ export const api={
   getMercadoLivreStatus:()=>request<{connected:boolean;status:string;user?:{id:number;nickname:string;first_name?:string;last_name?:string};expiresAt?:string}>('/integrations/mercadolivre/status'),
   disconnectMercadoLivre:()=>request<{message:string}>('/integrations/mercadolivre/disconnect',{method:'POST'}),
   getMercadoLivreTopOffers:(category?:string)=>request<{total:number;items:Array<{keyword:string;category:string;badge:string;discount:number;price:number;oldPrice:number;sales:string;rating:number;reviews:number;imageUrl:string;url:string}>;trends:Array<{keyword:string;url:string}>}>(`/integrations/mercadolivre/top-offers${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  getMercadoLivreCategories:()=>request<Array<{id:string;name:string}>>('/integrations/mercadolivre/catalog/categories'),
+  searchMercadoLivreCatalog:(params:Record<string,string|number|boolean|undefined>)=>{
+    const query=new URLSearchParams();
+    Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!==''&&value!==false)query.set(key,String(value));});
+    return request<{items:Array<{id:string;title:string;categoryId:string;price:number;oldPrice:number;discount:number;imageUrl:string;url:string;freeShipping:boolean;condition:string;availableQuantity:number;officialStoreName:string|null;installments:{quantity:number;amount:number;rate:number}|null}>;paging:{page:number;limit:number;total:number;accessibleTotal:number;pages:number};availableSorts:Array<{id:string;name:string}>}>(`/integrations/mercadolivre/catalog?${query}`);
+  },
   parseMercadoLivreItem:(url:string)=>request<{mlbId:string;title:string;category:string;currentPrice:number;previousPrice:number;imageUrl:string;originalUrl:string;affiliateUrl:string}>('/integrations/mercadolivre/parse-item',{method:'POST',body:JSON.stringify({url})}),
   generateMercadoLivreLink:(url:string,tag?:string)=>request<{originalUrl:string;affiliateUrl:string;tag:string}>('/integrations/mercadolivre/generate-link',{method:'POST',body:JSON.stringify({url,tag})}),
   getMercadoLivreOrders:()=>request<{orders:Array<{id:string;market:string;product:string;date:string;value:string;commission:string;status:string}>;metrics:{totalOrders:number;totalSalesAmount:number;confirmedCommission:number}}>('/integrations/mercadolivre/orders'),

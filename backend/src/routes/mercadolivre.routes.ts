@@ -83,6 +83,37 @@ mercadoLivreRouter.get('/trends', async (_req, res) => {
   }
 });
 
+mercadoLivreRouter.get('/catalog/categories', async (_req, res) => {
+  try {
+    const data = await mercadoLivreService.getCatalogCategories();
+    res.json({ success: true, data });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao carregar categorias';
+    res.status(502).json({ success: false, error: message });
+  }
+});
+
+mercadoLivreRouter.get('/catalog', async (req, res) => {
+  try {
+    const numberParam = (value: unknown) => typeof value === 'string' && value !== '' ? Number(value) : undefined;
+    const data = await mercadoLivreService.searchCatalog({
+      query: typeof req.query.q === 'string' ? req.query.q : undefined,
+      category: typeof req.query.category === 'string' ? req.query.category : undefined,
+      page: numberParam(req.query.page),
+      limit: numberParam(req.query.limit),
+      sort: typeof req.query.sort === 'string' ? req.query.sort : undefined,
+      onlyOffers: req.query.onlyOffers === 'true',
+      freeShipping: req.query.freeShipping === 'true',
+      minPrice: numberParam(req.query.minPrice),
+      maxPrice: numberParam(req.query.maxPrice)
+    });
+    res.json({ success: true, data });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao buscar produtos';
+    res.status(502).json({ success: false, error: message });
+  }
+});
+
 // Importação e parsing automático por link ou código MLB
 mercadoLivreRouter.post('/parse-item', async (req, res) => {
   try {
@@ -98,7 +129,7 @@ mercadoLivreRouter.post('/parse-item', async (req, res) => {
   }
 });
 
-// Geração de links de afiliado com tag/tracking
+// Valida links que já foram gerados pela Central de Afiliados.
 mercadoLivreRouter.post('/generate-link', (req, res) => {
   try {
     const { url, tag } = req.body;
@@ -109,7 +140,7 @@ mercadoLivreRouter.post('/generate-link', (req, res) => {
     res.json({ success: true, data: { originalUrl: url, affiliateUrl, tag: tag || 'central-ofertas' } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao gerar link de afiliado';
-    res.status(500).json({ success: false, error: message });
+    res.status(400).json({ success: false, error: message });
   }
 });
 

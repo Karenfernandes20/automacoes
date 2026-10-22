@@ -503,6 +503,7 @@ export function SettingsPage() {
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showCurrentPass ? 'text' : 'password'}
+                    autoComplete="current-password"
                     value={currentPassword}
                     onChange={e => setCurrentPassword(e.target.value)}
                     placeholder="Digite a senha atual"
@@ -541,6 +542,7 @@ export function SettingsPage() {
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showNewPass ? 'text' : 'password'}
+                    autoComplete="new-password"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     placeholder="Mínimo 6 dígitos"
@@ -579,6 +581,7 @@ export function SettingsPage() {
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showConfirmPass ? 'text' : 'password'}
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
                     placeholder="Repita a nova senha"
@@ -612,6 +615,28 @@ export function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {feedback && (
+          <div
+            role="alert"
+            aria-live="polite"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 14px',
+              borderRadius: '8px',
+              border: `1px solid ${feedback.type === 'success' ? '#86efac' : '#fca5a5'}`,
+              background: feedback.type === 'success' ? '#f0fdf4' : '#fef2f2',
+              color: feedback.type === 'success' ? '#166534' : '#b91c1c',
+              fontSize: '14px',
+              fontWeight: 600
+            }}
+          >
+            {feedback.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+            {feedback.message}
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
           <button

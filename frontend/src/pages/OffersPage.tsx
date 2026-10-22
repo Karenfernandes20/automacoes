@@ -180,8 +180,8 @@ function OfferModal({offer,onClose,onSaved}:{offer:Offer|null;onClose:()=>void;o
     currentPrice:String(offer?.currentPrice||''),
     previousPrice:String(offer?.previousPrice||''),
     coupon:offer?.coupon||'',
-    originalUrl:offer?.originalUrl||'https://example.com/produto',
-    affiliateUrl:offer?.affiliateUrl||'https://example.com/afiliado',
+    originalUrl:offer?.originalUrl||'',
+    affiliateUrl:offer?.affiliateUrl||'',
     availability:offer?.availability||'AVAILABLE',
     status:offer?.status||'DRAFT',
     publishAt:offer?.publishAt?.slice(0,16)||''
@@ -291,7 +291,10 @@ function OfferModal({offer,onClose,onSaved}:{offer:Offer|null;onClose:()=>void;o
           <label>Disponibilidade<select value={form.availability} onChange={e=>set('availability',e.target.value)}><option value="AVAILABLE">Disponível</option><option value="LOW_STOCK">Estoque baixo</option><option value="UNAVAILABLE">Indisponível</option></select></label>
           <label className="wide">URL da imagem<input required type="url" value={form.imageUrl} onChange={e=>set('imageUrl',e.target.value)}/></label>
           <label className="wide">Link original<input required type="url" value={form.originalUrl} onChange={e=>set('originalUrl',e.target.value)}/></label>
-          <label className="wide">Link de afiliado<input required type="url" value={form.affiliateUrl} onChange={e=>set('affiliateUrl',e.target.value)}/></label>
+          <label className="wide">Link de afiliado
+            <input required type="url" value={form.affiliateUrl} onChange={e=>set('affiliateUrl',e.target.value)} placeholder="Cole o link gerado na Central de Afiliados do Mercado Livre"/>
+            <small>Use o link criado em Afiliados → Gerador de links. O sistema não altera mais esse endereço.</small>
+          </label>
           <label>Status<select value={form.status} onChange={e=>set('status',e.target.value)}><option value="DRAFT">Rascunho</option><option value="PENDING">Enviar para aprovação</option><option value="APPROVED">Aprovada</option><option value="PUBLISHED">Publicada</option></select></label>
           <label>Publicar em<input type="datetime-local" value={form.publishAt} onChange={e=>set('publishAt',e.target.value)}/></label>
         </div>
@@ -304,4 +307,3 @@ function OfferModal({offer,onClose,onSaved}:{offer:Offer|null;onClose:()=>void;o
     </div>
   );
 }
-

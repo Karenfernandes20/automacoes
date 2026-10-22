@@ -5,24 +5,47 @@ services:
     rootDir: .
     buildCommand: npm ci && npm run build -w shared && npm run build -w backend
     startCommand: npm run start -w backend
+    healthCheckPath: /api/health
+    disk:
+      name: central-ofertas-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: FRONTEND_URL
+        value: https://central-ofertas-web.onrender.com
+      - key: MERCADOLIVRE_REDIRECT_URI
+        value: https://central-ofertas-api.onrender.com/api/integrations/mercadolivre/callback
+      - key: MERCADOLIVRE_APP_ID
+        sync: false
+      - key: MERCADOLIVRE_CLIENT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: WUZAPI_BASE_URL
+        sync: false
+      - key: WUZAPI_ADMIN_TOKEN
+        sync: false
+      - key: WUZAPI_USER_TOKEN
+        sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-          name: central-ofertas-db
-          property: connectionString
   - type: static
     name: central-ofertas-web
     rootDir: .
     buildCommand: npm ci && npm run build -w shared && npm run build -w frontend
     staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://central-ofertas-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
-databases:
-  - name: central-ofertas-db
-    databaseName: central_ofertas

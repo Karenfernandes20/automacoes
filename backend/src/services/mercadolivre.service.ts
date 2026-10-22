@@ -19,8 +19,9 @@ export interface MLTokenData {
   };
 }
 
-const storagePath = path.resolve(process.cwd(), 'mercadolivre-token.json');
+const storagePath = path.resolve(env.DATA_DIR || process.cwd(), 'mercadolivre-token.json');
 let tokenMemory: MLTokenData | null = null;
+let categoriesCache: { expiresAt: number; data: Array<{ id: string; name: string }> } | null = null;
 
 async function loadToken(): Promise<MLTokenData | null> {
   if (tokenMemory) return tokenMemory;
@@ -38,7 +39,9 @@ async function saveToken(token: MLTokenData | null) {
   if (!token) {
     try {
       await fs.unlink(storagePath);
-    } catch {}
+    } catch {
+      // O arquivo pode ainda não existir na primeira execução.
+    }
     return;
   }
   await fs.writeFile(storagePath, JSON.stringify(token, null, 2), 'utf8');
@@ -190,6 +193,109 @@ export const mercadoLivreService = {
     }
   },
 
+  async getCatalogCategories() {
+    if (categoriesCache && categoriesCache.expiresAt > Date.now()) return categoriesCache.data;
+    const token = await this.getValidToken();
+    if (!token) throw new Error('A conexão com o Mercado Livre expirou. Reconecte a conta em Integrações.');
+
+    const res = await fetch('https://api.mercadolibre.com/sites/MLB/categories', {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    });
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('O Mercado Livre recusou o acesso ao catálogo. Reconecte a conta e autorize a permissão de leitura.');
+    }
+    if (!res.ok) throw new Error('Não foi possível carregar as categorias do Mercado Livre.');
+
+    const data = await res.json() as Array<{ id: string; name: string }>;
+    categoriesCache = { expiresAt: Date.now() + 6 * 60 * 60 * 1000, data };
+    return data;
+  },
+
+  async searchCatalog(params: {
+    query?: string;
+    category?: string;
+    page?: number;
+    limit?: number;
+    sort?: string;
+    onlyOffers?: boolean;
+    freeShipping?: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+  }) {
+    const token = await this.getValidToken();
+    if (!token) throw new Error('A conexão com o Mercado Livre expirou. Reconecte a conta em Integrações.');
+
+    const limit = Math.min(Math.max(params.limit || 48, 1), 50);
+    const page = Math.max(params.page || 1, 1);
+    const offset = Math.min((page - 1) * limit, 950);
+    const query = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (params.query?.trim()) query.set('q', params.query.trim());
+    if (params.category) query.set('category', params.category);
+    if (params.sort) query.set('sort', params.sort);
+    if (params.freeShipping) query.set('shipping_cost', 'free');
+    if (Number.isFinite(params.minPrice)) query.set('price', `${params.minPrice}-*`);
+    if (Number.isFinite(params.maxPrice)) {
+      query.set('price', `${Number.isFinite(params.minPrice) ? params.minPrice : '*'}-${params.maxPrice}`);
+    }
+
+    const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?${query}`, {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    });
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('O Mercado Livre recusou a busca. Reconecte sua conta em Integrações para renovar a autorização.');
+    }
+    if (!res.ok) throw new Error('Não foi possível consultar o catálogo do Mercado Livre agora.');
+
+    const data = await res.json() as {
+      results?: Array<{
+        id: string; title: string; category_id: string; price: number; original_price?: number;
+        base_price?: number; thumbnail?: string; permalink: string; shipping?: { free_shipping?: boolean };
+        condition?: string; available_quantity?: number; official_store_name?: string;
+        installments?: { quantity: number; amount: number; rate: number };
+      }>;
+      paging?: { total?: number };
+      available_sorts?: Array<{ id: string; name: string }>;
+      filters?: unknown[];
+      available_filters?: unknown[];
+    };
+    const allItems = (data.results || []).map(item => {
+      const price = Number(item.price || 0);
+      const oldPrice = Number(item.original_price || item.base_price || price);
+      const discount = oldPrice > price ? Math.round((1 - price / oldPrice) * 100) : 0;
+      return {
+        id: item.id,
+        title: item.title,
+        categoryId: item.category_id,
+        price,
+        oldPrice,
+        discount,
+        imageUrl: String(item.thumbnail || '').replace(/^http:/, 'https:').replace('-I.jpg', '-O.jpg'),
+        url: item.permalink,
+        freeShipping: Boolean(item.shipping?.free_shipping),
+        condition: item.condition,
+        availableQuantity: item.available_quantity,
+        officialStoreName: item.official_store_name || null,
+        installments: item.installments || null
+      };
+    });
+    const items = params.onlyOffers ? allItems.filter(item => item.discount > 0) : allItems;
+    const reportedTotal = Number(data.paging?.total || items.length);
+
+    return {
+      items,
+      paging: {
+        page,
+        limit,
+        total: reportedTotal,
+        accessibleTotal: Math.min(reportedTotal, 1000),
+        pages: Math.max(1, Math.ceil(Math.min(reportedTotal, 1000) / limit))
+      },
+      availableSorts: data.available_sorts || [],
+      filters: data.filters || [],
+      availableFilters: data.available_filters || []
+    };
+  },
+
   async getTopOffers(category?: string) {
     const trends = await this.getTrends();
 
@@ -279,7 +385,11 @@ export const mercadoLivreService = {
       { keyword: 'Volante Gamer com Pedais e Câmbio para PC PS4 Xbox One e Switch', category: 'Games', badge: 'Simulador', discount: 30, price: 499.00, oldPrice: 713.00, sales: '+8 mil vendidos', rating: 4.7, reviews: 3100, imageUrl: 'https://images.unsplash.com/photo-1600080972464-8e5f35f63d08?auto=format&fit=crop&w=600&q=80', url: 'https://produto.mercadolivre.com.br/MLB-2718293847-volante-gamer-pedais-cambio' }
     ];
 
-    let items = curatedKeywords;
+    // Este catálogo era apenas uma demonstração visual. Os IDs MLB nele são
+    // fictícios e não podem ser publicados como se fossem anúncios reais.
+    // Mantemos os termos acima somente como referência interna, mas nunca os
+    // devolvemos para a tela de ofertas.
+    let items = curatedKeywords.filter(() => false);
     if (category && category !== 'Todas') {
       items = items.filter(x => x.category.toLowerCase().includes(category.toLowerCase()));
     }
@@ -294,91 +404,57 @@ export const mercadoLivreService = {
   // 1. IMPORTAÇÃO AUTOMÁTICA DE PRODUTOS / ANÚNCIOS POR LINK OU ID (MLB...)
   async parseItem(input: string) {
     const raw = input.trim();
-    // Extrai o ID MLB (ex: MLB-5283692714 ou MLB5283692714)
     const matchId = raw.match(/MLB-?(\d+)/i);
-    const mlbId = matchId ? `MLB${matchId[1]}` : (raw.startsWith('MLB') ? raw : null);
-
-    // Se temos um ID do MLB, tentar buscar dados pela API com token
-    const token = await this.getValidToken();
-
-    // Dicionário inteligente de catálogo ou fallback com base no ID ou termo
-    let title = 'Produto Mercado Livre';
-    let category = 'Geral';
-    let price = 199.90;
-    let oldPrice = 249.90;
-    let imageUrl = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
-    let originalUrl = raw.startsWith('http') ? raw : `https://produto.mercadolivre.com.br/${mlbId || 'MLB-12345'}`;
-
-    if (raw.toLowerCase().includes('iphone') || raw.toLowerCase().includes('celular') || raw.toLowerCase().includes('smartphone')) {
-      title = 'Apple iPhone 15 128GB Preto';
-      category = 'Celulares';
-      price = 4299.00;
-      oldPrice = 5499.00;
-      imageUrl = 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80';
-    } else if (raw.toLowerCase().includes('fone') || raw.toLowerCase().includes('bluetooth') || raw.toLowerCase().includes('headset')) {
-      title = 'Fone de Ouvido Bluetooth Sem Fio Cancelamento Ruído';
-      category = 'Eletrônicos';
-      price = 189.90;
-      oldPrice = 299.90;
-      imageUrl = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80';
-    } else if (raw.toLowerCase().includes('cafeteira') || raw.toLowerCase().includes('airfryer') || raw.toLowerCase().includes('panela')) {
-      title = 'Cafeteira Elétrica Inox Programável 15 Bar';
-      category = 'Casa & Cozinha';
-      price = 329.90;
-      oldPrice = 459.90;
-      imageUrl = 'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?auto=format&fit=crop&w=600&q=80';
-    } else if (mlbId) {
-      title = `Produto Oficial Mercado Livre (${mlbId})`;
-      category = 'Tecnologia';
-      price = 249.00;
-      oldPrice = 319.00;
+    const mlbId = matchId ? `MLB${matchId[1]}` : null;
+    if (!mlbId) {
+      throw new Error('Cole a URL da página exata do produto ou um código MLB válido.');
     }
 
-    // Se temos um token e o produto pertence à conta ou catálogo autorizado
-    if (token && mlbId) {
-      try {
-        const res = await fetch(`https://api.mercadolibre.com/items/${mlbId}`, {
-          headers: { Authorization: `Bearer ${token.access_token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          title = data.title || title;
-          price = data.price || price;
-          oldPrice = data.original_price || (data.price ? data.price * 1.2 : oldPrice);
-          if (data.pictures && data.pictures.length > 0) {
-            imageUrl = data.pictures[0].secure_url || data.pictures[0].url || imageUrl;
-          }
-          if (data.permalink) originalUrl = data.permalink;
-        }
-      } catch (e) {
-        console.warn('API items/MLB falhou ou requer escopo específico, usando fallback inteligente', e);
-      }
+    const token = await this.getValidToken();
+    if (!token) {
+      throw new Error('A conexão com o Mercado Livre expirou. Reconecte sua conta em Integrações.');
+    }
+
+    const res = await fetch(`https://api.mercadolibre.com/items/${mlbId}`, {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    });
+    if (!res.ok) {
+      throw new Error(`O Mercado Livre não confirmou o anúncio ${mlbId}. Verifique o link e reconecte sua conta.`);
+    }
+
+    const data = await res.json();
+    if (!data.permalink || data.status !== 'active') {
+      throw new Error('Este anúncio não está ativo ou não possui uma página de produto válida.');
     }
 
     return {
-      mlbId: mlbId || 'MLB-NOVO',
-      title,
-      category,
-      currentPrice: price,
-      previousPrice: oldPrice,
-      imageUrl,
-      originalUrl,
-      affiliateUrl: this.generateAffiliateLink(originalUrl, 'central-ofertas')
+      mlbId,
+      title: data.title,
+      category: data.category_id || 'Geral',
+      currentPrice: data.price,
+      previousPrice: data.original_price || data.price,
+      imageUrl: data.pictures?.[0]?.secure_url || data.thumbnail,
+      originalUrl: data.permalink,
+      // A API comum do aplicativo não cria links do Programa de Afiliados.
+      // Esse campo deve ser preenchido com o link gerado no Portal de Afiliados.
+      affiliateUrl: ''
     };
   },
 
   // 2. GERAÇÃO DE LINKS DE AFILIADO / TRACKING
-  generateAffiliateLink(url: string, tag: string = 'central-ofertas') {
-    try {
-      const u = new URL(url);
-      u.searchParams.set('matt_tool', '28711832');
-      u.searchParams.set('matt_word', tag);
-      u.searchParams.set('tracking_id', tag);
-      return u.toString();
-    } catch {
-      const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}matt_tool=28711832&matt_word=${tag}&tracking_id=${tag}`;
+  generateAffiliateLink(url: string, _tag: string = 'central-ofertas') {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const isOfficialHost = host === 'meli.la' || host === 'mercadolivre.com' || host === 'mercadolivre.com.br' || host.endsWith('.mercadolivre.com.br');
+    const isAffiliateLink = host === 'meli.la' || parsed.pathname.startsWith('/sec/');
+
+    if (!isOfficialHost) {
+      throw new Error('Use um link oficial do Mercado Livre.');
     }
+    if (!isAffiliateLink) {
+      throw new Error('Este é um link comum de produto. Gere o link na Central de Afiliados do Mercado Livre e cole-o no campo Link de afiliado.');
+    }
+    return parsed.toString();
   },
 
   // 3. CONSULTA DE PEDIDOS E MÉTRICAS DE AFILIADO DA CONTA REAL

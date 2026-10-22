@@ -155,7 +155,11 @@ authRouter.put('/profile', requireAuth, async (req, res) => {
 
     // Se forneceu nova senha, deve validar a senha atual se for ele mesmo
     if (newPassword) {
-      if (currentPassword && currentPassword !== current.password) {
+      if (!currentPassword) {
+        res.status(400).json({ success: false, error: 'Informe sua senha atual para alterar a senha.' });
+        return;
+      }
+      if (currentPassword !== current.password) {
         res.status(400).json({ success: false, error: 'A senha atual informada está incorreta.' });
         return;
       }

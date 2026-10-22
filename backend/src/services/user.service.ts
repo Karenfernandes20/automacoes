@@ -13,8 +13,9 @@ export interface UserAccount {
   updatedAt: string;
 }
 
-const usersFile = path.resolve(process.cwd(), 'users.json');
-const legacyUserFile = path.resolve(process.cwd(), 'user-settings.json');
+const storageDir = env.DATA_DIR || process.cwd();
+const usersFile = path.resolve(storageDir, 'users.json');
+const legacyUserFile = path.resolve(storageDir, 'user-settings.json');
 let memoryUsers: UserAccount[] | null = null;
 
 export const userService = {
